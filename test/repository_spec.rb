@@ -105,6 +105,14 @@ describe Gitrb do
     repo.root['a'].should be_nil
   end
 
+  it 'should move entries' do
+    repo.root['a/b/c'] = Gitrb::Blob.new(:data => 'Hello')
+    repo.root['a/b/c'].data.should == 'Hello'
+    repo.root.move('a/b/c', 'x/y/z')
+    repo.root['a/b/c'].should be_nil
+    repo.root['x/y/z'].data.should == 'Hello'
+  end
+
   it 'should have a head commit' do
     file 'a', 'Hello'
 

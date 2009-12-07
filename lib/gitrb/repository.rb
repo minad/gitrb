@@ -2,6 +2,7 @@ require 'zlib'
 require 'digest/sha1'
 require 'yaml'
 require 'fileutils'
+require 'logger'
 
 require 'gitrb/repository'
 require 'gitrb/object'
@@ -17,10 +18,6 @@ require 'gitrb/trie'
 module Gitrb
   class NotFound < StandardError; end
 
-  class NullLogger
-    def method_missing(*args) false end
-  end
-
   class Repository
     attr_reader :path, :index, :root, :branch, :lock_file, :head, :bare
 
@@ -28,7 +25,7 @@ module Gitrb
     def initialize(options = {})
       @bare    = options[:bare] || false
       @branch  = options[:branch] || 'master'
-      @logger  = options[:logger] || NullLogger.new
+      @logger  = options[:logger] || Logger.new(nil)
 
       @path = options[:path]
       @path.chomp!('/')
@@ -84,45 +81,16 @@ module Gitrb
     # Example:
     #   repository.transaction { repository['a'] = 'b' }
     #
-    def transaction(message = "")
+    def transaction(message = '', author = nil, committer = nil)
       start_transaction
       result = yield
-      commit(message)
+      commit(message, author, committer)
       result
     rescue
-      rollback
+      rollback_transaction
       raise
     ensure
       finish_transaction
-    end
-
-    # Start a transaction.
-    #
-    # Tries to get lock on lock file, load the this repository if
-    # has changed in the repository.
-    def start_transaction
-      file = File.open("#{head_path}.lock", "w")
-      file.flock(File::LOCK_EX)
-      Thread.current['gitrb_repository_lock'] = file
-      refresh
-    end
-
-    # Rerepository the state of the repository.
-    #
-    # Any changes made to the repository are discarded.
-    def rollback
-      @objects.clear
-      load
-      finish_transaction
-    end
-
-    # Finish the transaction.
-    #
-    # Release the lock file.
-    def finish_transaction
-      Thread.current['gitrb_repository_lock'].close rescue nil
-      Thread.current['gitrb_repository_lock'] = nil
-      File.unlink("#{head_path}.lock") rescue nil
     end
 
     # Write a commit object to disk and set the head of the current branch.
@@ -153,7 +121,7 @@ module Gitrb
     def log(limit = 10, start = nil, path = nil)
       args = ['--format=tformat:%H%n%P%n%T%n%an%n%ae%n%at%n%cn%n%ce%n%ct%n%x00%s%n%b%x00', "-#{limit}", ]
       args << start if start
-      args << "--" << path if path
+      args << "--" << path if path && !path.empty?
       log = git_log(*args).split(/\n*\x00\n*/)
       commits = []
       log.each_slice(2) do |data, message|
@@ -296,6 +264,35 @@ module Gitrb
     end
 
     protected
+
+    # Start a transaction.
+    #
+    # Tries to get lock on lock file, load the this repository if
+    # has changed in the repository.
+    def start_transaction
+      file = File.open("#{head_path}.lock", "w")
+      file.flock(File::LOCK_EX)
+      Thread.current['gitrb_repository_lock'] = file
+      refresh
+    end
+
+    # Rerepository the state of the repository.
+    #
+    # Any changes made to the repository are discarded.
+    def rollback_transaction
+      @objects.clear
+      load
+      finish_transaction
+    end
+
+    # Finish the transaction.
+    #
+    # Release the lock file.
+    def finish_transaction
+      Thread.current['gitrb_repository_lock'].close rescue nil
+      Thread.current['gitrb_repository_lock'] = nil
+      File.unlink("#{head_path}.lock") rescue nil
+    end
 
     def get_type(id, expected)
       object = get(id)

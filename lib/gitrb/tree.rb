@@ -68,63 +68,63 @@ module Gitrb
       id
     end
 
-    # Read entry with specified name.
-    def get(name)
-      @children[name]
-    end
-
-    # Write entry with specified name.
-    def put(name, value)
-      raise RuntimeError, "no blob or tree" if !(Blob === value || Tree === value)
-      value.repository = repository
-      @modified = true
-      @children[name] = value
-      value
-    end
-
-    # Remove entry with specified name.
-    def remove(name)
-      @modified = true
-      @children.delete(name.to_s)
-    end
-
     # Does this key exist in the children?
-    def has_key?(name)
-      @children.has_key?(name.to_s)
+    def exists?(name)
+      self[name] != nil
     end
 
-    def normalize_path(path)
-      (path[0, 1] == '/' ? path[1..-1] : path).split('/')
-    end
-
-    # Read a value on specified path.
+    # Read an entry on specified path.
     def [](path)
+      path = normalize_path(path)
       return self if path.empty?
-      normalize_path(path).inject(self) do |tree, key|
-        raise RuntimeError, 'Not a tree' if tree.type != 'tree'
-        tree.get(key) or return nil
+      entry = @children[path.first]
+      if path.size == 1
+        entry
+      elsif entry
+        raise RuntimeError, 'Not a tree' if entry.type != 'tree'
+        entry[path[1..-1]]
       end
     end
 
-    # Write a value on specified path.
-    def []=(path, value)
-      list = normalize_path(path)
-      tree = list[0..-2].to_a.inject(self) do |tree, name|
+    # Write an entry on specified path.
+    def []=(path, entry)
+      path = normalize_path(path)
+      if path.empty?
+        raise RuntimeError, 'Empty path'
+      elsif path.size == 1
+        raise RuntimeError, 'No blob or tree' if entry.type != 'tree' && entry.type != 'blob'
+        entry.repository = repository
+        @modified = true
+        @children[path.first] = entry
+      else
+        tree = @children[path.first]
+        if !tree
+          tree = @children[path.first] = Tree.new(:repository => repository)
+          @modified = true
+        end
         raise RuntimeError, 'Not a tree' if tree.type != 'tree'
-        tree.get(name) || tree.put(name, Tree.new(:repository => repository))
+        tree[path[1..-1]] = entry
       end
-      tree.put(list.last, value)
     end
 
-    # Delete a value on specified path.
+    # Delete a entry on specified path.
     def delete(path)
-      list = normalize_path(path)
-
-      tree = list[0..-2].to_a.inject(self) do |tree, key|
-        tree.get(key) or return
+      path = normalize_path(path)
+      if path.empty?
+        raise RuntimeError, 'Empty path'
+      elsif path.size == 1
+        @modified = true
+        @children.delete(path.first)
+      else
+        tree = @children[path.first]
+        raise RuntimeError, 'Not a tree' if tree.type != 'tree'
+        tree.delete(path[1..-1])
       end
+    end
 
-      tree.remove(list.last)
+    # Move a entry
+    def move(path, dest)
+      self[dest] = delete(path)
     end
 
     # Iterate over all children
@@ -145,6 +145,12 @@ module Gitrb
     alias children values
 
     private
+
+    def normalize_path(path)
+      return path if Array === path
+      path = path.to_s
+      (path[0, 1] == '/' ? path[1..-1] : path).split('/')
+    end
 
     # Read the contents of a raw git object.
     def parse(data)

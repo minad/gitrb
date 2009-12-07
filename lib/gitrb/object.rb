@@ -32,7 +32,7 @@ module Gitrb
 
     def method_missing(name, *args, &block)
       if @object
-        instance_eval "def self.#{name}(*args, &block); @object.#{name}(*args, &block); end"
+        instance_eval %{def self.#{name}(*args, &block); @object.send("#{name}", *args, &block); end}
         @object.send(name, *args, &block)
       elsif name == :type && (mode = @properties['mode'] || @properties[:mode])
         mode = mode.to_i(8)
