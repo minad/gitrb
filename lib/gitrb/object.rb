@@ -25,6 +25,8 @@ module Gitrb
   end
 
   class Reference
+    undef_method :id, :type rescue nil
+
     def initialize(properties = {})
       @properties = properties
       @object = nil
