@@ -4,6 +4,7 @@ require 'yaml'
 require 'fileutils'
 require 'logger'
 
+require 'gitrb/util'
 require 'gitrb/repository'
 require 'gitrb/object'
 require 'gitrb/blob'
@@ -19,13 +20,26 @@ module Gitrb
   class NotFound < StandardError; end
 
   class Repository
-    attr_reader :path, :index, :root, :branch, :lock_file, :head, :bare
+    attr_reader :path, :index, :root, :branch, :lock_file, :head, :encoding
+
+    SHA_PATTERN = /[A-Fa-f0-9]{5,40}/
+    REVISION_PATTERN = /[\w\-\.]+([\^~](\d+)?)*/
+
+    # Encoding stuff
+    DEFAULT_ENCODING = 'utf-8'
+
+    if RUBY_VERSION > '1.9'
+      def set_encoding(s); s.force_encoding(@encoding); end
+    else
+      def set_encoding(s); s; end
+    end
 
     # Initialize a repository.
     def initialize(options = {})
       @bare    = options[:bare] || false
       @branch  = options[:branch] || 'master'
       @logger  = options[:logger] || Logger.new(nil)
+      @encoding = options[:encoding] || DEFAULT_ENCODING
 
       @path = options[:path]
       @path.chomp!('/')
@@ -45,6 +59,11 @@ module Gitrb
 
       load_packs
       load
+    end
+
+    # Bare repository?
+    def bare?
+      @bare
     end
 
     # Switch branch
@@ -70,9 +89,15 @@ module Gitrb
 
     # Diff
     def diff(from, to, path = nil)
-      from = from.id if Commit === from
-      to = to.id if Commit === to
-      Diff.new(from, to, git_diff('--full-index', from, to, '--', path))
+      if from && !(Commit === from)
+        raise ArgumentError if !(String === from)
+        from = Reference.new(:repository => self, :id => from)
+      end
+      if !(Commit === to)
+        raise ArgumentError if !(String === to)
+        to = Reference.new(:repository => self, :id => to)
+      end
+      Diff.new(from, to, git_diff_tree('--root', '-u', '--full-index', from && from.id, to.id, '--', path))
     end
 
     # All changes made inside a transaction are atomic. If some
@@ -136,7 +161,7 @@ module Gitrb
       end
       commits
     rescue => ex
-      return [] if ex.message =~ /bad default revision 'HEAD'/
+      return [] if ex.message =~ /bad default revision 'HEAD'/i
       raise
     end
 
@@ -144,20 +169,29 @@ module Gitrb
     #
     # Returns a tree, blob, commit or tag object.
     def get(id)
-      return nil if id.nil? || id.length < 5
-      list = @objects.find(id).to_a
-      return list.first if list.size == 1
+      raise NotFound, "No id given" if id.nil?
+      if id =~ SHA_PATTERN
+        raise NotFound, "Sha too short" if id.length < 5
+        list = @objects.find(id).to_a
+        return list.first if list.size == 1
+      elsif id =~ REVISION_PATTERN
+        list = git_rev_parse(id).split("\n") rescue nil
+        raise NotFound, "Revision not found" if !list || list.empty?
+        raise NotFound, "Revision is ambiguous" if list.size > 1
+        id = list.first
+      end
 
       @logger.debug "gitrb: Loading #{id}"
 
       path = object_path(id)
       if File.exists?(path) || (glob = Dir.glob(path + '*')).size >= 1
         if glob
-          raise NotFound, "Sha not unique" if glob.size > 1
-          path = glob[0]
+          raise NotFound, "Sha is ambiguous" if glob.size > 1
+          path = glob.first
+          id = path[-41..-40] + path[-38..-1]
         end
 
-        buf = File.open(path, "rb") { |f| f.read }
+        buf = File.open(path, 'rb') { |f| f.read }
 
         raise NotFound, "Not a loose object: #{id}" if !legacy_loose_object?(buf)
 
@@ -166,17 +200,21 @@ module Gitrb
 
         raise NotFound, "Bad object: #{id}" if content.length != size.to_i
       else
-        list = @packs.find(id).to_a
-        return nil if list.size != 1
+        trie = @packs.find(id)
+	raise NotFound, "Object not found" if !trie
+
+        id += trie.key[-(41 - id.length)...-1]
+
+        list = trie.to_a
+	raise NotFound, "Sha is ambiguous" if list.size > 1
 
         pack, offset = list.first
         content, type = pack.get_object(offset)
       end
 
-      raise NotFound, "Object not found" if !type
-
       @logger.debug "gitrb: Loaded #{id}"
 
+      set_encoding(id)
       object = Gitrb::Object.factory(type, :repository => self, :id => id, :data => content)
       @objects.insert(id, object)
       object
@@ -206,6 +244,7 @@ module Gitrb
 
       @logger.debug "gitrb: Stored #{id}"
 
+      set_encoding(id)
       object.repository = self
       object.id = id
       @objects.insert(id, object)
@@ -223,10 +262,11 @@ module Gitrb
 
         @logger.debug "gitrb: #{cmd}"
 
+	# Read in binary mode (ascii-8bit) and convert afterwards
         out = if block_given?
-                IO.popen(cmd, &block)
-              else
-                `#{cmd}`.chomp
+		IO.popen(cmd, 'rb', &block)
+	      else
+                set_encoding IO.popen(cmd, 'rb') {|io| io.read }
               end
 
         if $?.exitstatus > 0
@@ -366,7 +406,7 @@ module Gitrb
     end
 
     def legacy_loose_object?(buf)
-      buf.getord(0) == 0x78 && ((buf.getord(0) << 8) + buf.getord(1)) % 31 == 0
+      buf[0].ord == 0x78 && ((buf[0].ord << 8) | buf[1].ord) % 31 == 0
     end
 
   end

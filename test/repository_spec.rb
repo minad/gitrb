@@ -17,9 +17,40 @@ describe Gitrb do
   end
 
   it 'should fail to initialize without a valid git repository' do
-    lambda {
+    lambda do
       Gitrb::Repository.new(:path => '/')
-    }.should raise_error(ArgumentError)
+    end.should raise_error(ArgumentError)
+  end
+
+  it 'should put and get objects by sha' do
+    blob1 = repo.put(Gitrb::Blob.new(:data => 'Hello'))
+    blob2 = repo.put(Gitrb::Blob.new(:data => 'World'))
+
+    repo.get(blob1.id).should === blob1
+    repo.get(blob1.id[0..4]).should === blob1
+    repo.get(blob1.id[0..10]).should === blob1
+
+    repo.get(blob2.id).should === blob2
+    repo.get(blob2.id[0..4]).should === blob2
+    repo.get(blob2.id[0..10]).should === blob2
+  end
+
+  it 'should find commits by revision' do
+    repo.root['a'] = Gitrb::Blob.new(:data => 'Hello')
+    commit1 = repo.commit
+
+    repo.get('HEAD').should === commit1
+    repo.get('master').should === commit1
+    lambda { repo.get('HEAD^') }.should raise_error(Gitrb::NotFound)
+
+    repo.root['a'] = Gitrb::Blob.new(:data => 'World')
+    commit2 = repo.commit
+
+    repo.get('master').should === commit2
+    repo.get('HEAD').should === commit2
+    repo.get('HEAD^').should === commit1
+    repo.get('HEAD~').should === commit1
+    lambda { repo.get('HEAD^^') }.should raise_error(Gitrb::NotFound)
   end
 
   it 'should find modified entries' do

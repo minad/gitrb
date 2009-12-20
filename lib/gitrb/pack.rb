@@ -1,5 +1,3 @@
-# -*- coding: us-ascii -*-
-
 #
 # converted from the gitrb project
 #
@@ -12,10 +10,6 @@
 #
 
 require 'zlib'
-
-class String
-  def getord(i); self[i].ord; end
-end
 
 module Gitrb
   PACK_SIGNATURE = "PACK"
@@ -165,7 +159,7 @@ module Gitrb
 
     def find_object(sha1)
       with_idx do |idx|
-        slot = sha1.getord(0)
+        slot = sha1[0].ord
         return nil if !slot
         first, last = @offsets[slot,2]
         while first < last
@@ -206,13 +200,13 @@ module Gitrb
       obj_offset = offset
       packfile.seek(offset)
 
-      c = packfile.read(1).getord(0)
+      c = packfile.read(1)[0].ord
       size = c & 0xf
       type = (c >> 4) & 7
       shift = 4
       offset += 1
       while c & 0x80 != 0
-        c = packfile.read(1).getord(0)
+        c = packfile.read(1)[0].ord
         size |= ((c & 0x7f) << shift)
         shift += 7
         offset += 1
@@ -235,10 +229,10 @@ module Gitrb
 
       if type == OBJ_OFS_DELTA
         i = 0
-        c = data.getord(i)
+        c = data[i].ord
         base_offset = c & 0x7f
         while c & 0x80 != 0
-          c = data.getord(i += 1)
+          c = data[i += 1].ord
           base_offset += 1
           base_offset <<= 7
           base_offset |= c & 0x7f
@@ -285,18 +279,18 @@ module Gitrb
       dest_size, pos = patch_delta_header_size(delta, pos)
       dest = ""
       while pos < delta.size
-        c = delta.getord(pos)
+        c = delta[pos].ord
         pos += 1
         if c & 0x80 != 0
           pos -= 1
           cp_off = cp_size = 0
-          cp_off = delta.getord(pos += 1) if c & 0x01 != 0
-          cp_off |= delta.getord(pos += 1) << 8 if c & 0x02 != 0
-          cp_off |= delta.getord(pos += 1) << 16 if c & 0x04 != 0
-          cp_off |= delta.getord(pos += 1) << 24 if c & 0x08 != 0
-          cp_size = delta.getord(pos += 1) if c & 0x10 != 0
-          cp_size |= delta.getord(pos += 1) << 8 if c & 0x20 != 0
-          cp_size |= delta.getord(pos += 1) << 16 if c & 0x40 != 0
+          cp_off = delta[pos += 1].ord if c & 0x01 != 0
+          cp_off |= delta[pos += 1].ord << 8 if c & 0x02 != 0
+          cp_off |= delta[pos += 1].ord << 16 if c & 0x04 != 0
+          cp_off |= delta[pos += 1].ord << 24 if c & 0x08 != 0
+          cp_size = delta[pos += 1].ord if c & 0x10 != 0
+          cp_size |= delta[pos += 1].ord << 8 if c & 0x20 != 0
+          cp_size |= delta[pos += 1].ord << 16 if c & 0x40 != 0
           cp_size = 0x10000 if cp_size == 0
           pos += 1
           dest << base[cp_off,cp_size]
@@ -314,7 +308,7 @@ module Gitrb
       size = 0
       shift = 0
       begin
-        c = delta.getord(pos)
+        c = delta[pos].ord
         if c == nil
           raise PackFormatError, 'invalid delta header'
         end

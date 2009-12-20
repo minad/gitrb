@@ -1,23 +1,3 @@
-class StringIO
-  if RUBY_VERSION > '1.9'
-    def read_bytes_until(char)
-      str = ''
-      while ((ch = getc) != char) && !eof
-        str << ch
-      end
-      str
-    end
-  else
-    def read_bytes_until(char)
-      str = ''
-      while ((ch = getc.chr) != char) && !eof
-        str << ch
-      end
-      str
-    end
-  end
-end
-
 module Gitrb
 
   class Tree < Gitrb::Object
@@ -44,8 +24,8 @@ module Gitrb
 
     # Set new repository (modified flag is reset)
     def id=(id)
-      super
       @modified = false
+      super
     end
 
     # Has this tree been modified?
@@ -56,7 +36,7 @@ module Gitrb
     def dump
       @children.to_a.sort {|a,b| a.first <=> b.first }.map do |name, child|
 	child.save if !(Reference === child) || child.resolved?
-        "#{child.mode} #{name}\0#{[child.id].pack("H*")}"
+        "#{child.mode} #{name}\0#{repository.set_encoding [child.id].pack("H*")}"
       end.join
     end
 
@@ -157,9 +137,9 @@ module Gitrb
       @children.clear
       data = StringIO.new(data)
       while !data.eof?
-        mode = data.read_bytes_until(' ')
-        name = data.read_bytes_until("\0")
-        id   = data.read(20).unpack("H*").first
+        mode = repository.set_encoding Util.read_bytes_until(data, ' ')
+        name = repository.set_encoding Util.read_bytes_until(data, "\0")
+        id   = repository.set_encoding data.read(20).unpack("H*").first
         @children[name] = Reference.new(:repository => repository, :id => id, :mode => mode)
       end
     end

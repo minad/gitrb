@@ -47,19 +47,20 @@ module Gitrb
 
     def parse(data)
       headers, @message = data.split("\n\n", 2)
+      repository.set_encoding(@message)
 
       headers.split("\n").each do |header|
         key, value = header.split(' ', 2)
 
         case key
         when 'parent'
-          @parent << Reference.new(:repository => repository, :id => value)
+          @parent << Reference.new(:repository => repository, :id => repository.set_encoding(value))
         when 'author'
-          @author = User.parse(value)
+          @author = User.parse(repository.set_encoding(value))
         when 'committer'
-          @committer = User.parse(value)
+          @committer = User.parse(repository.set_encoding(value))
         when 'tree'
-          @tree = Reference.new(:repository => repository, :id => value)
+          @tree = Reference.new(:repository => repository, :id => repository.set_encoding(value))
         end
       end
 
