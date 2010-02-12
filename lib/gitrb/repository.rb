@@ -3,6 +3,7 @@ require 'digest/sha1'
 require 'yaml'
 require 'fileutils'
 require 'logger'
+require 'enumerator'
 
 require 'gitrb/util'
 require 'gitrb/repository'
