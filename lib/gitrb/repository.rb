@@ -145,7 +145,8 @@ module Gitrb
 
     # Returns a list of commits starting from head commit.
     def log(limit = 10, start = nil, path = nil)
-      args = ['--format=tformat:%H%n%P%n%T%n%an%n%ae%n%at%n%cn%n%ce%n%ct%n%x00%s%n%b%x00', "-#{limit}", ]
+      ### FIX: tformat need --pretty option
+      args = ['--pretty=tformat:%H%n%P%n%T%n%an%n%ae%n%at%n%cn%n%ce%n%ct%n%x00%s%n%b%x00', "-#{limit}", ]
       args << start if start
       args << "--" << path if path && !path.empty?
       log = git_log(*args).split(/\n*\x00\n*/)
