@@ -1,6 +1,6 @@
 module Gitrb
 
-  class Tree < Gitrb::Object
+  class Tree < GitObject
     include Enumerable
 
     attr_accessor :mode, :repository
@@ -15,7 +15,7 @@ module Gitrb
     end
 
     def type
-      'tree'
+      :tree
     end
 
     def ==(other)
@@ -30,7 +30,7 @@ module Gitrb
 
     # Has this tree been modified?
     def modified?
-      @modified || @children.values.any? { |entry| entry.type == 'tree' && entry.modified? }
+      @modified || @children.values.any? { |entry| entry.type == :tree && entry.modified? }
     end
 
     def dump
@@ -61,7 +61,7 @@ module Gitrb
       if path.size == 1
         entry
       elsif entry
-        raise RuntimeError, 'Not a tree' if entry.type != 'tree'
+        raise 'Not a tree' if entry.type != :tree
         entry[path[1..-1]]
       end
     end
@@ -70,9 +70,9 @@ module Gitrb
     def []=(path, entry)
       path = normalize_path(path)
       if path.empty?
-        raise RuntimeError, 'Empty path'
+        raise 'Empty path'
       elsif path.size == 1
-        raise RuntimeError, 'No blob or tree' if entry.type != 'tree' && entry.type != 'blob'
+        raise 'No blob or tree' if entry.type != :tree && entry.type != :blob
         entry.repository = repository
         @modified = true
         @children[path.first] = entry
@@ -82,7 +82,7 @@ module Gitrb
           tree = @children[path.first] = Tree.new(:repository => repository)
           @modified = true
         end
-        raise RuntimeError, 'Not a tree' if tree.type != 'tree'
+        raise 'Not a tree' if tree.type != :tree
         tree[path[1..-1]] = entry
       end
     end
@@ -91,13 +91,13 @@ module Gitrb
     def delete(path)
       path = normalize_path(path)
       if path.empty?
-        raise RuntimeError, 'Empty path'
+        raise 'Empty path'
       elsif path.size == 1
         @modified = true
         @children.delete(path.first)
       else
         tree = @children[path.first]
-        raise RuntimeError, 'Not a tree' if tree.type != 'tree'
+        raise 'Not a tree' if tree.type != :tree
         tree.delete(path[1..-1])
       end
     end

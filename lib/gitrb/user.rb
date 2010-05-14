@@ -1,14 +1,13 @@
 module Gitrb
 
-  class User
-    attr_accessor :name, :email, :date
-
+  class User < Struct.new(:name, :email, :date)
     def initialize(name, email, date = Time.now)
-      @name, @email, @date = name, email, date
+      super
     end
 
     def dump
-      "#{name} <#{email}> #{date.localtime.to_i} #{date.gmt_offset < 0 ? '-' : '+'}#{date.gmt_offset / 60}"
+      off = date.gmt_offset / 60
+      '%s <%s> %d %s%02d%02d' % [name, email, date.to_i, off < 0 ? '-' : '+', off / 60, off % 60]
     end
 
     def self.parse(user)

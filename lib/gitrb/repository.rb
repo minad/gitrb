@@ -1,22 +1,3 @@
-require 'zlib'
-require 'digest/sha1'
-require 'yaml'
-require 'fileutils'
-require 'logger'
-require 'enumerator'
-
-require 'gitrb/util'
-require 'gitrb/repository'
-require 'gitrb/object'
-require 'gitrb/blob'
-require 'gitrb/diff'
-require 'gitrb/tree'
-require 'gitrb/tag'
-require 'gitrb/user'
-require 'gitrb/pack'
-require 'gitrb/commit'
-require 'gitrb/trie'
-
 module Gitrb
   class NotFound < StandardError; end
 
@@ -75,7 +56,7 @@ module Gitrb
 
     # Has our repository been changed on disk?
     def changed?
-      head.nil? or head.id != read_head_id
+      head.nil? || head.id != read_head_id
     end
 
     # Load the repository, if it has been changed on disk.
@@ -173,13 +154,14 @@ module Gitrb
     def get(id)
       raise NotFound, "No id given" if id.nil?
       if id =~ SHA_PATTERN
-        raise NotFound, "Sha too short" if id.length < 5
+        raise NotFound, "Sha too short: #{id}" if id.length < 5
         list = @objects.find(id).to_a
+        raise NotFound, "Sha is ambiguous #{id}" if list.size > 1
         return list.first if list.size == 1
       elsif id =~ REVISION_PATTERN
         list = git_rev_parse(id).split("\n") rescue nil
-        raise NotFound, "Revision not found" if !list || list.empty?
-        raise NotFound, "Revision is ambiguous" if list.size > 1
+        raise NotFound, "Revision not found: #{id}" if !list || list.empty?
+        raise NotFound, "Revision is ambiguous: #{id}" if list.size > 1
         id = list.first
       end
 
@@ -188,7 +170,7 @@ module Gitrb
       path = object_path(id)
       if File.exists?(path) || (glob = Dir.glob(path + '*')).size >= 1
         if glob
-          raise NotFound, "Sha is ambiguous" if glob.size > 1
+          raise NotFound, "Sha is ambiguous: #{id}" if glob.size > 1
           path = glob.first
           id = path[-41..-40] + path[-38..-1]
         end
@@ -203,12 +185,12 @@ module Gitrb
         raise NotFound, "Bad object: #{id}" if content.length != size.to_i
       else
         trie = @packs.find(id)
-	raise NotFound, "Object not found" if !trie
+	raise NotFound, "Object not found: #{id}" if !trie
 
         id += trie.key[-(41 - id.length)...-1]
 
         list = trie.to_a
-	raise NotFound, "Sha is ambiguous" if list.size > 1
+	raise NotFound, "Sha is ambiguous: #{id}" if list.size > 1
 
         pack, offset = list.first
         content, type = pack.get_object(offset)
@@ -217,14 +199,14 @@ module Gitrb
       @logger.debug "gitrb: Loaded #{id}"
 
       set_encoding(id)
-      object = Gitrb::Object.factory(type, :repository => self, :id => id, :data => content)
+      object = GitObject.factory(type, :repository => self, :id => id, :data => content)
       @objects.insert(id, object)
       object
     end
 
-    def get_tree(id)   get_type(id, 'tree') end
-    def get_blob(id)   get_type(id, 'blob') end
-    def get_commit(id) get_type(id, 'commit') end
+    def get_tree(id)   get_type(id, :tree) end
+    def get_blob(id)   get_type(id, :blob) end
+    def get_commit(id) get_type(id, :commit) end
 
     # Write a raw object to the repository.
     #
@@ -273,7 +255,7 @@ module Gitrb
 
         if $?.exitstatus > 0
           return '' if $?.exitstatus == 1 && out == ''
-          raise RuntimeError, "#{cmd}: #{out}"
+          raise "#{cmd}: #{out}"
         end
 
         out
@@ -305,7 +287,7 @@ module Gitrb
       end
     end
 
-    protected
+    private
 
     # Start a transaction.
     #
@@ -404,7 +386,7 @@ module Gitrb
     end
 
     def write_head_id(id)
-      File.open(head_path, "wb") {|file| file.write(id) }
+      File.open(head_path, 'wb') {|file| file.write(id) }
     end
 
     def legacy_loose_object?(buf)

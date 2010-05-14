@@ -1,6 +1,6 @@
 module Gitrb
 
-  class Tag < Gitrb::Object
+  class Tag < GitObject
     attr_accessor :object, :tagtype, :tagger, :message
 
     def initialize(options = {})
@@ -9,7 +9,7 @@ module Gitrb
     end
 
     def ==(other)
-      Tag === other and id == other.id
+      Tag === other && id == other.id
     end
 
     def parse(data)

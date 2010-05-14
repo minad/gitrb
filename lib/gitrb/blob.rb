@@ -1,7 +1,7 @@
 module Gitrb
 
   # This class stores the raw string data of a blob
-  class Blob < Gitrb::Object
+  class Blob < GitObject
 
     attr_accessor :data, :mode
 
@@ -9,15 +9,15 @@ module Gitrb
     def initialize(options = {})
       super(options)
       @data = options[:data]
-      @mode = options[:mode] || "100644"
+      @mode = options[:mode] || '100644'
     end
 
     def type
-      'blob'
+      :blob
     end
 
     def ==(other)
-      Blob === other and id == other.id
+      Blob === other && id == other.id
     end
 
     def dump

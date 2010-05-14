@@ -1,6 +1,6 @@
 module Gitrb
 
-  class Commit < Gitrb::Object
+  class Commit < GitObject
     attr_accessor :tree, :parent, :author, :committer, :message
 
     def initialize(options = {})
@@ -14,7 +14,7 @@ module Gitrb
     end
 
     def type
-      'commit'
+      :commit
     end
 
     def date
@@ -22,7 +22,7 @@ module Gitrb
     end
 
     def ==(other)
-      Commit === other and id == other.id
+      Commit === other && id == other.id
     end
 
     def save

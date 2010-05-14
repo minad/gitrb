@@ -9,8 +9,6 @@
 # provides native ruby access to git objects and pack files
 #
 
-require 'zlib'
-
 module Gitrb
   PACK_SIGNATURE = "PACK"
   PACK_IDX_SIGNATURE = "\377tOc"
