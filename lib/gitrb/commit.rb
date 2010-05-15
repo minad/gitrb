@@ -1,11 +1,11 @@
 module Gitrb
 
   class Commit < GitObject
-    attr_accessor :tree, :parent, :author, :committer, :message
+    attr_accessor :tree, :parents, :author, :committer, :message
 
     def initialize(options = {})
       super(options)
-      @parent = [options[:parent]].flatten.compact
+      @parents = [options[:parents]].flatten.compact
       @tree = options[:tree]
       @author = options[:author]
       @committer = options[:committer]
@@ -32,7 +32,7 @@ module Gitrb
 
     def dump
       [ "tree #{tree.id}",
-        @parent.map { |p| "parent #{p.id}" },
+        @parents.map { |p| "parent #{p.id}" },
         "author #{author.dump}",
         "committer #{committer.dump}",
         '',
@@ -54,7 +54,7 @@ module Gitrb
 
         case key
         when 'parent'
-          @parent << Reference.new(:repository => repository, :id => repository.set_encoding(value))
+          @parents << Reference.new(:repository => repository, :id => repository.set_encoding(value))
         when 'author'
           @author = User.parse(repository.set_encoding(value))
         when 'committer'

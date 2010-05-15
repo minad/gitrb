@@ -1,14 +1,25 @@
 module Gitrb
   class NotFound < StandardError; end
 
+  class CommandError < StandardError
+    attr_reader :command, :args, :output
+
+    def initialize(command, args, output)
+      super("#{command} failed")
+      @command = command
+      @args = args
+      @output = output
+    end
+  end
+
   class Repository
-    attr_reader :path, :index, :root, :branch, :lock_file, :head, :encoding
+    attr_reader :path, :root, :branch, :head, :encoding
 
-    SHA_PATTERN = /[A-Fa-f0-9]{5,40}/
-    REVISION_PATTERN = /[\w\-\.]+([\^~](\d+)?)*/
-
-    # Encoding stuff
+    SHA_PATTERN = /^[A-Fa-f0-9]{5,40}$/
+    REVISION_PATTERN = /^[\w\-\.]+([\^~](\d+)?)*$/
     DEFAULT_ENCODING = 'utf-8'
+    MIN_GIT_VERSION = '1.6.0'
+    LOCK = 'Gitrb.Repository.lock'
 
     if RUBY_VERSION > '1.9'
       def set_encoding(s); s.force_encoding(@encoding); end
@@ -27,17 +38,8 @@ module Gitrb
       @path.chomp!('/')
       @path += '/.git' if !@bare
 
-      if options[:create] && !File.exists?("#{@path}/objects")
-        FileUtils.mkpath(@path) if !File.exists?(@path)
-        raise ArgumentError, "Not a valid Git repository: '#{@path}'" if !File.directory?(@path)
-        if @bare
-          Dir.chdir(@path) { git_init('--bare') }
-        else
-          Dir.chdir(@path[0..-6]) { git_init }
-        end
-      else
-        raise ArgumentError, "Not a valid Git repository: '#{@path}'" if !File.directory?("#{@path}/objects")
-      end
+      check_git_version if !options[:ignore_version]
+      open_repository(options[:create])
 
       load_packs
       load
@@ -66,17 +68,17 @@ module Gitrb
 
     # Is there any transaction going on?
     def in_transaction?
-      Thread.current['gitrb_repository_lock']
+      Thread.current[LOCK]
     end
 
     # Diff
     def diff(from, to, path = nil)
       if from && !(Commit === from)
-        raise ArgumentError if !(String === from)
+        raise ArgumentError, "Invalid sha: #{from}" if from !~ SHA_PATTERN
         from = Reference.new(:repository => self, :id => from)
       end
       if !(Commit === to)
-        raise ArgumentError if !(String === to)
+        raise ArgumentError, "Invalid sha: #{to}" if to !~ SHA_PATTERN
         to = Reference.new(:repository => self, :id => to)
       end
       Diff.new(from, to, git_diff_tree('--root', '-u', '--full-index', from && from.id, to.id, '--', path))
@@ -112,7 +114,7 @@ module Gitrb
 
       commit = Commit.new(:repository => self,
                           :tree => root,
-                          :parent => head,
+                          :parents => head,
                           :author => author,
                           :committer => committer,
                           :message => message)
@@ -126,17 +128,21 @@ module Gitrb
 
     # Returns a list of commits starting from head commit.
     def log(limit = 10, start = nil, path = nil)
-      ### FIX: tformat need --pretty option
-      args = ['--pretty=tformat:%H%n%P%n%T%n%an%n%ae%n%at%n%cn%n%ce%n%ct%n%x00%s%n%b%x00', "-#{limit}", ]
-      args << start if start
-      args << "--" << path if path && !path.empty?
+      limit = limit.to_s
+      start = start.to_s
+      raise ArgumentError, "Invalid limit: #{limit}" if limit !~ /^\d+$/
+      raise ArgumentError, "Invalid commit: #{start}" if start =~ /^\-/
+      args = ['--pretty=tformat:%H%n%P%n%T%n%an%n%ae%n%at%n%cn%n%ce%n%ct%n%x00%s%n%b%x00', "-#{limit}" ]
+      args << start if !start.empty?
+      args << '--' << path if path && !path.empty?
       log = git_log(*args).split(/\n*\x00\n*/)
       commits = []
       log.each_slice(2) do |data, message|
         data = data.split("\n")
+        parents = data[1].empty? ? nil : data[1].split(' ').map {|id| Reference.new(:repository => self, :id => id) }
         commits << Commit.new(:repository => self,
                               :id => data[0],
-                              :parent => data[1].empty? ? nil : Reference.new(:repository => self, :id => data[1]),
+                              :parents => parents,
                               :tree => Reference.new(:repository => self, :id => data[2]),
                               :author => User.new(data[3], data[4], Time.at(data[5].to_i)),
                               :committer => User.new(data[6], data[7], Time.at(data[8].to_i)),
@@ -152,11 +158,12 @@ module Gitrb
     #
     # Returns a tree, blob, commit or tag object.
     def get(id)
-      raise NotFound, "No id given" if id.nil?
+      raise ArgumentError, 'No id given' if !(String === id)
+
       if id =~ SHA_PATTERN
         raise NotFound, "Sha too short: #{id}" if id.length < 5
         list = @objects.find(id).to_a
-        raise NotFound, "Sha is ambiguous #{id}" if list.size > 1
+        raise NotFound, "Sha is ambiguous: #{id}" if list.size > 1
         return list.first if list.size == 1
       elsif id =~ REVISION_PATTERN
         list = git_rev_parse(id).split("\n") rescue nil
@@ -240,22 +247,22 @@ module Gitrb
       cmd = name.to_s
       if cmd[0..3] == 'git_'
         ENV['GIT_DIR'] = path
-        args = args.flatten.compact.map {|s| "'" + s.to_s.gsub("'", "'\\\\''") + "'" }.join(' ')
         cmd = cmd[4..-1].tr('_', '-')
-        cmd = "git #{cmd} #{args} 2>&1"
+        args = args.flatten.compact.map {|s| "'" + s.to_s.gsub("'", "'\\\\''") + "'" }.join(' ')
+        cmdline = "git #{cmd} #{args} 2>&1"
 
-        @logger.debug "gitrb: #{cmd}"
+        @logger.debug "gitrb: #{cmdline}"
 
 	# Read in binary mode (ascii-8bit) and convert afterwards
         out = if block_given?
-		IO.popen(cmd, 'rb', &block)
+		IO.popen(cmdline, 'rb', &block)
 	      else
-                set_encoding IO.popen(cmd, 'rb') {|io| io.read }
+                set_encoding IO.popen(cmdline, 'rb') {|io| io.read }
               end
 
         if $?.exitstatus > 0
           return '' if $?.exitstatus == 1 && out == ''
-          raise "#{cmd}: #{out}"
+          raise CommandError.new("git #{cmd}", args, out)
         end
 
         out
@@ -289,14 +296,40 @@ module Gitrb
 
     private
 
+    def check_git_version
+      version = git_version
+      raise "Invalid git version: #{version}" if version !~ /^git version ([\d\.]+)$/
+      a = $1.split('.').map {|s| s.to_i }
+      b = MIN_GIT_VERSION.split('.').map {|s| s.to_i }
+      while !a.empty? && !b.empty? && a.first == b.first
+        a.shift
+        b.shift
+      end
+      raise "Minimum required git version is #{MIN_GIT_VERSION}" if a.first.to_i < b.first.to_i
+    end
+
+    def open_repository(create)
+      if create && !File.exists?("#{@path}/objects")
+        FileUtils.mkpath(@path) if !File.exists?(@path)
+        raise ArgumentError, "Not a valid Git repository: '#{@path}'" if !File.directory?(@path)
+        if @bare
+          Dir.chdir(@path) { git_init '--bare' }
+        else
+          Dir.chdir(@path[0..-6]) { git_init }
+        end
+      else
+        raise ArgumentError, "Not a valid Git repository: '#{@path}'" if !File.directory?("#{@path}/objects")
+      end
+    end
+
     # Start a transaction.
     #
     # Tries to get lock on lock file, load the this repository if
     # has changed in the repository.
     def start_transaction
-      file = File.open("#{head_path}.lock", "w")
+      file = File.open("#{head_path}.lock", 'w')
       file.flock(File::LOCK_EX)
-      Thread.current['gitrb_repository_lock'] = file
+      Thread.current[LOCK] = file
       refresh
     end
 
@@ -313,8 +346,8 @@ module Gitrb
     #
     # Release the lock file.
     def finish_transaction
-      Thread.current['gitrb_repository_lock'].close rescue nil
-      Thread.current['gitrb_repository_lock'] = nil
+      Thread.current[LOCK].close rescue nil
+      Thread.current[LOCK] = nil
       File.unlink("#{head_path}.lock") rescue nil
     end
 
@@ -374,7 +407,7 @@ module Gitrb
       if File.exists?(head_path)
         File.read(head_path).strip
       elsif File.exists?("#{path}/packed-refs")
-        File.open("#{path}/packed-refs", "rb") do |io|
+        File.open("#{path}/packed-refs", 'rb') do |io|
           while line = io.gets
             line.strip!
             next if line[0..0] == '#'
