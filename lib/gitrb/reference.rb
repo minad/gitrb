@@ -12,12 +12,11 @@ module Gitrb
         instance_eval %{def self.#{name}(*args, &block); @object.send("#{name}", *args, &block); end}
         @object.send(name, *args, &block)
       elsif name == :type && (mode = @properties['mode'] || @properties[:mode])
-        mode = mode.to_i(8)
-        return (mode & 0x4000 == 0x4000) ? :tree : :blob
+        (mode & 040000 == 040000) ? :tree : :blob
       elsif @properties.include?(name)
-        return @properties[name]
+        @properties[name]
       elsif @properties.include?(name.to_s)
-        return @properties[name.to_s]
+        @properties[name.to_s]
       elsif object
         method_missing(name, *args, &block)
       else

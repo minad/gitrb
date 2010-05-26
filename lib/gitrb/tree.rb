@@ -9,7 +9,7 @@ module Gitrb
     def initialize(options = {})
       super(options)
       @children = {}
-      @mode = options[:mode] || "040000"
+      @mode = options[:mode] || 040000
       parse(options[:data]) if options[:data]
       @modified = true if !id
     end
@@ -36,11 +36,11 @@ module Gitrb
     def dump
       @children.to_a.sort {|a,b| a.first <=> b.first }.map do |name, child|
 	child.save if !(Reference === child) || child.resolved?
-        "#{child.mode} #{name}\0#{repository.set_encoding [child.id].pack("H*")}"
+        "#{child.mode.to_s(8)} #{name}\0#{repository.set_encoding [child.id].pack("H*")}"
       end.join
     end
 
-    # Save this treetree back to the git repository.
+    # Save this tree back to the git repository.
     #
     # Returns the object id of the tree.
     def save
@@ -137,7 +137,7 @@ module Gitrb
       @children.clear
       data = StringIO.new(data)
       while !data.eof?
-        mode = repository.set_encoding Util.read_bytes_until(data, ' ')
+        mode = Util.read_bytes_until(data, ' ').to_i(8)
         name = repository.set_encoding Util.read_bytes_until(data, "\0")
         id   = repository.set_encoding data.read(20).unpack("H*").first
         @children[name] = Reference.new(:repository => repository, :id => id, :mode => mode)

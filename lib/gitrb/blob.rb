@@ -9,7 +9,7 @@ module Gitrb
     def initialize(options = {})
       super(options)
       @data = options[:data]
-      @mode = options[:mode] || '100644'
+      @mode = options[:mode] || 0100644
     end
 
     def type
