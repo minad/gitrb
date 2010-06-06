@@ -3,6 +3,7 @@ require 'digest/sha1'
 require 'fileutils'
 require 'logger'
 require 'enumerator'
+require 'stringio'
 
 require 'gitrb/util'
 require 'gitrb/gitobject'
