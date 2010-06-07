@@ -7,7 +7,7 @@ module Gitrb
 
     def dump
       off = date.gmt_offset / 60
-      '%s <%s> %d %s%02d%02d' % [name, email, date.to_i, off < 0 ? '-' : '+', off / 60, off % 60]
+      '%s <%s> %d %s%02d%02d' % [name, email, date.to_i, off < 0 ? '' : '+', off / 60, off % 60]
     end
 
     def self.parse(user)
