@@ -18,4 +18,26 @@ module Gitrb
       end
     end
   end
+
+  class Synchronized
+    def initialize(obj)
+      @obj = obj
+      @mutex = Mutex.new
+    end
+
+    def method_missing(*args)
+      @mutex.synchronize { @obj.send(*args) }
+    end
+  end
 end
+
+# str[0] returns a 1-char string in Ruby 1.9 but a
+# Fixnum in 1.8.  Monkeypatch a fix if we're on 1.8.
+if !1.respond_to?(:ord)
+  class Fixnum
+    def ord
+      self
+    end
+  end
+end
+

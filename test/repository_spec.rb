@@ -151,12 +151,6 @@ describe Gitrb do
     repo.head.should_not be_nil
   end
 
-  it 'should detect changes' do
-    file 'a', 'Hello'
-
-    repo.should be_changed
-  end
-
   it 'should rollback a transaction' do
     file 'a/b', 'Hello'
     file 'c/d', 'World'
@@ -269,6 +263,49 @@ describe Gitrb do
     tag.tagger.name.should == user.name
     tag.tagger.email.should == user.email
     tag.message.should =~ /message/
+  end
+
+  it 'should detect changes and refresh' do
+    file 'a', 'data'
+    repo.root['a'].should be_nil
+    repo.should be_changed
+    repo.refresh
+    repo.should_not be_changed
+    repo.root['a'].data.should == 'data'
+  end
+
+  it 'should clear cache' do
+    file 'a', 'data'
+    repo.refresh
+    repo.root['a'].data.should == 'data'
+    repo.clear
+    repo.root['a'].data.should == 'data'
+  end
+
+  it 'should forbid branch switching from within transaction' do
+    repo.transaction do
+      lambda { repo.branch = 'test' }.should raise_error(ThreadError)
+    end
+  end
+
+  it 'should forbid clearing from within transaction' do
+    repo.transaction do
+      lambda { repo.clear }.should raise_error(ThreadError)
+    end
+  end
+
+  it 'should forbid nested transactions' do
+    repo.transaction do
+      lambda { repo.transaction {} }.should raise_error(ThreadError)
+    end
+  end
+
+  it 'should be in transaction' do
+    repo.should_not be_in_transaction
+    repo.transaction do
+      repo.should be_in_transaction
+    end
+    repo.should_not be_in_transaction
   end
 
 end

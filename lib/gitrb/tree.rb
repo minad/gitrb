@@ -87,7 +87,7 @@ module Gitrb
       end
     end
 
-    # Delete a entry on specified path.
+    # Delete an entry on specified path.
     def delete(path)
       path = normalize_path(path)
       if path.empty?

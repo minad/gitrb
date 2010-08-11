@@ -19,7 +19,6 @@ module Gitrb
     REVISION_PATTERN = /^[\w\-\.]+([\^~](\d+)?)*$/
     DEFAULT_ENCODING = 'utf-8'
     MIN_GIT_VERSION = '1.6.0'
-    LOCK = 'Gitrb.Repository.lock'
 
     if RUBY_VERSION > '1.9'
       def set_encoding(s); s.force_encoding(@encoding); end
@@ -33,6 +32,8 @@ module Gitrb
       @branch  = options[:branch] || 'master'
       @logger  = options[:logger] || Logger.new(nil)
       @encoding = options[:encoding] || DEFAULT_ENCODING
+      @lock = {}
+      @transaction = Mutex.new
 
       @path = options[:path]
       @path.chomp!('/')
@@ -52,13 +53,15 @@ module Gitrb
 
     # Switch branch
     def branch=(branch)
-      @branch = branch
-      load
+      @transaction.synchronize do
+        @branch = branch
+        load
+      end
     end
 
     # Has our repository been changed on disk?
     def changed?
-      head.nil? || head.id != read_head_id
+      !head || head.id != read_head_id
     end
 
     # Load the repository, if it has been changed on disk.
@@ -66,9 +69,17 @@ module Gitrb
       load if changed?
     end
 
+    # Clear cached objects
+    def clear
+      @transaction.synchronize do
+        @objects.clear
+        load
+      end
+    end
+
     # Is there any transaction going on?
     def in_transaction?
-      Thread.current[LOCK]
+      !!@lock[Thread.current.object_id]
     end
 
     # Diff
@@ -91,15 +102,19 @@ module Gitrb
     #   repository.transaction { repository['a'] = 'b' }
     #
     def transaction(message = '', author = nil, committer = nil)
-      start_transaction
-      result = yield
-      commit(message, author, committer)
-      result
-    rescue
-      rollback_transaction
-      raise
-    ensure
-      finish_transaction
+      @transaction.synchronize do
+        begin
+          start_transaction
+          result = yield
+          commit(message, author, committer)
+          result
+        rescue
+          rollback_transaction
+          raise
+        ensure
+          finish_transaction
+        end
+      end
     end
 
     # Write a commit object to disk and set the head of the current branch.
@@ -286,14 +301,6 @@ module Gitrb
       User.new(name, email)
     end
 
-    def dup
-      super.instance_eval do
-        @objects = Trie.new
-        load
-        self
-      end
-    end
-
     private
 
     def check_git_version
@@ -329,7 +336,7 @@ module Gitrb
     def start_transaction
       file = File.open("#{head_path}.lock", 'w')
       file.flock(File::LOCK_EX)
-      Thread.current[LOCK] = file
+      @lock[Thread.current.object_id] = file
       refresh
     end
 
@@ -339,15 +346,14 @@ module Gitrb
     def rollback_transaction
       @objects.clear
       load
-      finish_transaction
     end
 
     # Finish the transaction.
     #
     # Release the lock file.
     def finish_transaction
-      Thread.current[LOCK].close rescue nil
-      Thread.current[LOCK] = nil
+      @lock[Thread.current.object_id].close rescue nil
+      @lock.delete(Thread.current.object_id)
       File.unlink("#{head_path}.lock") rescue nil
     end
 
@@ -359,7 +365,7 @@ module Gitrb
 
     def load_packs
       @packs   = Trie.new
-      @objects = Trie.new
+      @objects = Synchronized.new(Trie.new)
 
       packs_path = "#{@path}/objects/pack"
       if File.directory?(packs_path)
@@ -382,7 +388,7 @@ module Gitrb
         @head = nil
         @root = Tree.new(:repository => self)
       end
-      @logger.debug "gitrb: Reloaded, head is #{@head ? head.id : 'nil'}"
+      @logger.debug "gitrb: Reloaded, head is #{head ? head.id : 'nil'}"
     end
 
     # Returns the hash value of an object string.
@@ -425,6 +431,5 @@ module Gitrb
     def legacy_loose_object?(buf)
       buf[0].ord == 0x78 && ((buf[0].ord << 8) | buf[1].ord) % 31 == 0
     end
-
   end
 end
