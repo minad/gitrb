@@ -1,14 +1,10 @@
-require "#{File.dirname(__FILE__)}/../lib/gitrb"
-require "#{File.dirname(__FILE__)}/helper"
-require 'pp'
+require 'helper'
 
 describe Gitrb do
 
   REPO = '/tmp/gitrb_test.git'
 
-  attr_reader :repo
-
-  before(:each) do
+  before do
     FileUtils.rm_rf REPO
     Dir.mkdir REPO
 
@@ -18,13 +14,13 @@ describe Gitrb do
   it 'should fail to initialize without a valid git repository' do
     lambda {
       Gitrb::Repository.new('/foo', 'master', true)
-    }.should raise_error(ArgumentError)
+    }.should.raise(ArgumentError)
   end
 
   it 'should save and load entries' do
     repo.root['a'] = Gitrb::Blob.new(:data => 'Hello')
     repo.commit
 
-    repo.root['a'].data.should == 'Hello'
+    repo.root['a'].data.should.equal 'Hello'
   end
 end

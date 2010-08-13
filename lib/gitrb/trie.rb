@@ -4,72 +4,91 @@ module Gitrb
 
     attr_reader :key, :value
 
-    def initialize(key = '', value = nil, children = [])
+    def initialize(key = nil, value = nil, children = [])
       @key = key
       @value = value
       @children = children
     end
 
+    def children
+      @children.compact
+    end
+
     def clear
-      @key = ''
-      @value = nil
-      @children.clear
+      @key = @value = nil
+      @children = []
+    end
+
+    def empty?
+      self.size == 0
+    end
+
+    def each(&block)
+      yield(@value) if @value
+      children.each {|child| child.each(&block) }
+    end
+
+    def size
+      children.inject(@value ? 1 : 0) {|sum, child| sum + child.size }
     end
 
     def find(key)
-      if key.empty?
-        self
-      else
-        child = @children[key[0].ord]
-        if child && key[0...child.key.length] == child.key
-          child.find(key[child.key.length..-1])
+      if @key
+        if @key.index(key) == 0
+          self
+        elsif key.index(@key) == 0
+          child = @children[index(key)]
+          child ? child.find(key) : Trie.new
         else
-          nil
+          Trie.new
         end
+      else
+        self
       end
     end
 
     def insert(key, value)
-      if key.empty?
+      if !@key
+        @key = key
         @value = value
-        self
-      else
-        idx = key[0].ord
-        child = @children[idx]
-        if child
-          child.split(key) if key[0...child.key.length] != child.key
-          child.insert(key[child.key.length..-1], value)
+      elsif @key == key
+        @value = value
+      elsif @key.index(key) == 0
+        child = Trie.new(@key, @value, @children)
+        @children = []
+        @children[@key[key.length].ord] = child
+        @key = key
+        @value = value
+      elsif key.index(@key) == 0
+        i = index(key)
+        if @children[i]
+          @children[i].insert(key, value)
         else
-          @children[idx] = Trie.new(key, value)
+          @children[i] = Trie.new(key, value)
         end
+      else
+        n = 0
+        n += 1 while key[n] == @key[n]
+
+        child1 = Trie.new(@key, @value, @children)
+        child2 = Trie.new(key, value)
+
+        @value = nil
+        @key = @key[0...n]
+        @children = []
+        @children[index(child1.key)] = child1
+        @children[index(child2.key)] = child2
       end
-    end
-
-    def each(&block)
-      yield(@value) if !@key.empty?
-      @children.compact.each {|c| c.each(&block) }
-    end
-
-    def values
-      to_a
-    end
-
-    def dup
-      Trie.new(@key.dup, @value ? @value.dup : nil, @children.map {|c| c ? c.dup : nil })
     end
 
     def inspect
       "#<Gitrb::Trie @key=#{@key.inspect}, @value=#{@value.inspect}, @children=#{@children.compact.inspect}>"
     end
 
-    def split(key)
-      prefix = 0
-      prefix += 1 while key[prefix] == @key[prefix]
-      child = Trie.new(@key[prefix..-1], @value, @children)
-      @children = []
-      @children[@key[prefix].ord] = child
-      @key = @key[0...prefix]
-      @value = nil
+    private
+
+    def index(key)
+      key[@key.length].ord
     end
   end
 end

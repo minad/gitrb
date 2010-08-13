@@ -17,16 +17,16 @@ module Gitrb
         str
       end
     end
-  end
 
-  class Synchronized
-    def initialize(obj)
-      @obj = obj
-      @mutex = Mutex.new
-    end
+    class Synchronized
+      def initialize(obj)
+        @obj = obj
+        @mutex = Mutex.new
+      end
 
-    def method_missing(*args)
-      @mutex.synchronize { @obj.send(*args) }
+      def method_missing(*args)
+        @mutex.synchronize { @obj.send(*args) }
+      end
     end
   end
 end

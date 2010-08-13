@@ -1,5 +1,3 @@
-Gem.activate 'diff-lcs'
-
 require 'gitrb'
 require 'grit'
 require 'benchmark'

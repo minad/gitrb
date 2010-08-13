@@ -83,7 +83,14 @@ module Gitrb
     end
 
     # Diff
-    def diff(from, to, path = nil)
+    # Options:
+    #   :to             - Required target commit
+    #   :from           - Optional source commit (otherwise comparision with empty tree)
+    #   :path           - Restrict to path
+    #   :detect_renames - Detect renames O(n^2)
+    #   :detect_copies  - Detect copies O(n^2), very slow
+    def diff(opts)
+      from, to = opts[:from], opts[:to]
       if from && !(Commit === from)
         raise ArgumentError, "Invalid sha: #{from}" if from !~ SHA_PATTERN
         from = Reference.new(:repository => self, :id => from)
@@ -92,7 +99,10 @@ module Gitrb
         raise ArgumentError, "Invalid sha: #{to}" if to !~ SHA_PATTERN
         to = Reference.new(:repository => self, :id => to)
       end
-      Diff.new(from, to, git_diff_tree('--root', '-u', '--full-index', from && from.id, to.id, '--', path))
+      Diff.new(from, to, git_diff_tree('--root', '--full-index', '-u',
+                                       opts[:detect_renames] ? '-M' : nil,
+                                       opts[:detect_copies] ? '-C' : nil,
+                                       from ? from.id : nil, to.id, '--', opts[:path]))
     end
 
     # All changes made inside a transaction are atomic. If some
@@ -145,12 +155,11 @@ module Gitrb
     def log(limit = 10, start = nil, path = nil)
       limit = limit.to_s
       start = start.to_s
+      path  = path.to_s
       raise ArgumentError, "Invalid limit: #{limit}" if limit !~ /^\d+$/
       raise ArgumentError, "Invalid commit: #{start}" if start =~ /^\-/
-      args = ['--pretty=tformat:%H%n%P%n%T%n%an%n%ae%n%at%n%cn%n%ce%n%ct%n%x00%s%n%b%x00', "-#{limit}" ]
-      args << start if !start.empty?
-      args << '--' << path if path && !path.empty?
-      log = git_log(*args).split(/\n*\x00\n*/)
+      log = git_log('--pretty=tformat:%H%n%P%n%T%n%an%n%ae%n%at%n%cn%n%ce%n%ct%n%x00%s%n%b%x00',
+                    "-#{limit}", start.empty? ? nil : start, '--', path.empty? ? nil : path).split(/\n*\x00\n*/)
       commits = []
       log.each_slice(2) do |data, message|
         data = data.split("\n")
@@ -176,15 +185,20 @@ module Gitrb
       raise ArgumentError, 'No id given' if !(String === id)
 
       if id =~ SHA_PATTERN
-        raise NotFound, "Sha too short: #{id}" if id.length < 5
-        list = @objects.find(id).to_a
-        raise NotFound, "Sha is ambiguous: #{id}" if list.size > 1
-        return list.first if list.size == 1
+        raise ArgumentError, "Sha too short: #{id}" if id.length < 5
+
+        trie = @objects.find(id)
+        raise NotFound, "Sha is ambiguous: #{id}" if trie.size > 1
+        return trie.value if !trie.empty?
       elsif id =~ REVISION_PATTERN
         list = git_rev_parse(id).split("\n") rescue nil
         raise NotFound, "Revision not found: #{id}" if !list || list.empty?
         raise NotFound, "Revision is ambiguous: #{id}" if list.size > 1
         id = list.first
+
+        trie = @objects.find(id)
+        raise NotFound, "Sha is ambiguous: #{id}" if trie.size > 1
+        return trie.value if !trie.empty?
       end
 
       @logger.debug "gitrb: Loading #{id}"
@@ -207,14 +221,10 @@ module Gitrb
         raise NotFound, "Bad object: #{id}" if content.length != size.to_i
       else
         trie = @packs.find(id)
-	raise NotFound, "Object not found: #{id}" if !trie
-
-        id += trie.key[-(41 - id.length)...-1]
-
-        list = trie.to_a
-	raise NotFound, "Sha is ambiguous: #{id}" if list.size > 1
-
-        pack, offset = list.first
+	raise NotFound, "Object not found: #{id}" if trie.empty?
+	raise NotFound, "Sha is ambiguous: #{id}" if trie.size > 1
+        id = trie.key
+        pack, offset = trie.value
         content, type = pack.get_object(offset)
       end
 
@@ -365,7 +375,7 @@ module Gitrb
 
     def load_packs
       @packs   = Trie.new
-      @objects = Synchronized.new(Trie.new)
+      @objects = Util::Synchronized.new(Trie.new)
 
       packs_path = "#{@path}/objects/pack"
       if File.directory?(packs_path)

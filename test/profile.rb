@@ -1,4 +1,3 @@
-Gem.activate 'diff-lcs'
 require 'gitrb'
 require 'fileutils'
 require 'grit'
