@@ -11,6 +11,10 @@ module Gitrb
       self
     end
 
+    def ==(other)
+      self.class === other && id == other.id
+    end
+
     @types = {}
 
     def self.inherited(subclass)

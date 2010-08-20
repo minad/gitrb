@@ -18,10 +18,6 @@ module Gitrb
       :tree
     end
 
-    def ==(other)
-      Tree === other && id == other.id
-    end
-
     # Set new repository (modified flag is reset)
     def id=(id)
       @modified = false

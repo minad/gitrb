@@ -16,10 +16,6 @@ module Gitrb
       :blob
     end
 
-    def ==(other)
-      Blob === other && id == other.id
-    end
-
     def dump
       @data
     end

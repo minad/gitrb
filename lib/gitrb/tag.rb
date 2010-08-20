@@ -8,10 +8,6 @@ module Gitrb
       parse(options[:data]) if options[:data]
     end
 
-    def ==(other)
-      Tag === other && id == other.id
-    end
-
     def parse(data)
       headers, @message = data.split("\n\n", 2)
       repository.set_encoding(@message)

@@ -21,10 +21,6 @@ module Gitrb
       (committer && committer.date) || (author && author.date)
     end
 
-    def ==(other)
-      Commit === other && id == other.id
-    end
-
     def save
       repository.put(self)
       id
