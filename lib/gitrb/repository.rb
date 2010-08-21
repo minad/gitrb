@@ -185,7 +185,7 @@ module Gitrb
     #
     # Returns a tree, blob, commit or tag object.
     def get(id)
-      raise ArgumentError, 'No id given' if !(String === id)
+      raise ArgumentError, 'Invalid id given' if !(String === id)
 
       if id =~ SHA_PATTERN
         raise ArgumentError, "Sha too short: #{id}" if id.length < 5
@@ -202,6 +202,8 @@ module Gitrb
         trie = @objects.find(id)
         raise NotFound, "Sha is ambiguous: #{id}" if trie.size > 1
         return trie.value if !trie.empty?
+      else
+        raise ArgumentError, "Invalid id given: #{id}"
       end
 
       @logger.debug "gitrb: Loading #{id}"

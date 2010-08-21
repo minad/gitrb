@@ -64,6 +64,7 @@ module Gitrb
 
     # Write an entry on specified path.
     def []=(path, entry)
+      raise ArgumentError if !entry
       path = normalize_path(path)
       if path.empty?
         raise 'Empty path'
@@ -89,8 +90,9 @@ module Gitrb
       if path.empty?
         raise 'Empty path'
       elsif path.size == 1
-        @modified = true
-        @children.delete(path.first)
+        child = @children.delete(path.first)
+        @modified = true if child
+        child
       else
         tree = @children[path.first]
         raise 'Not a tree' if tree.type != :tree

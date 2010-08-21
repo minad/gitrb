@@ -22,6 +22,7 @@ module Gitrb
 
     # Save the data to the git object repository
     def save
+      raise 'Blob is empty' if !data
       repository.put(self)
       id
     end
