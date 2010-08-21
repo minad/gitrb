@@ -18,7 +18,6 @@ gitrb.gemspec
 lib/gitrb.rb
 lib/gitrb/blob.rb
 lib/gitrb/commit.rb
-lib/gitrb/diff.rb
 lib/gitrb/gitobject.rb
 lib/gitrb/pack.rb
 lib/gitrb/reference.rb

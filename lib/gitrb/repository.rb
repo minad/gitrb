@@ -12,6 +12,8 @@ module Gitrb
     end
   end
 
+  Diff = Struct.new(:from, :to, :patch)
+
   class Repository
     attr_reader :path, :root, :branch, :head, :encoding
 
@@ -82,7 +84,7 @@ module Gitrb
       !!@lock[Thread.current.object_id]
     end
 
-    # Diff
+    # Difference between versions
     # Options:
     #   :to             - Required target commit
     #   :from           - Optional source commit (otherwise comparision with empty tree)

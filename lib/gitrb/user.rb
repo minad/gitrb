@@ -1,8 +1,11 @@
 module Gitrb
+  class User
+    attr_reader :name, :email, :date
 
-  class User < Struct.new(:name, :email, :date)
     def initialize(name, email, date = Time.now)
-      super
+      @name  = name
+      @email = email
+      @date  = date
     end
 
     def dump
@@ -17,5 +20,4 @@ module Gitrb
     end
 
   end
-
 end
