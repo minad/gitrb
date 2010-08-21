@@ -154,14 +154,15 @@ module Gitrb
     end
 
     # Returns a list of commits starting from head commit.
-    def log(limit = 10, start = nil, path = nil)
-      limit = limit.to_s
-      start = start.to_s
-      path  = path.to_s
-      raise ArgumentError, "Invalid limit: #{limit}" if limit !~ /^\d+$/
-      raise ArgumentError, "Invalid commit: #{start}" if start =~ /^\-/
+    def log(opts = {})
+      max_count = opts[:max_count]
+      skip = opts[:skip]
+      start = opts[:start]
+      path = opts[:path]
+      raise ArgumentError, "Invalid commit: #{start}" if start.to_s =~ /^\-/
       log = git_log('--pretty=tformat:%H%n%P%n%T%n%an%n%ae%n%at%n%cn%n%ce%n%ct%n%x00%s%n%b%x00',
-                    "-#{limit}", start.empty? ? nil : start, '--', path.empty? ? nil : path).split(/\n*\x00\n*/)
+                    skip ? "--skip=#{skip.to_i}" : nil,
+                    max_count ? "--max-count=#{max_count.to_i}" : nil, start, '--', path).split(/\n*\x00\n*/)
       commits = []
       log.each_slice(2) do |data, message|
         data = data.split("\n")
