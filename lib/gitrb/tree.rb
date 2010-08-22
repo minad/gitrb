@@ -3,7 +3,8 @@ module Gitrb
   class Tree < GitObject
     include Enumerable
 
-    attr_accessor :mode, :repository
+    attr_accessor :repository
+    attr_reader :mode
 
     # Initialize a tree
     def initialize(options = {})
@@ -18,6 +19,14 @@ module Gitrb
       :tree
     end
 
+    # Set mode
+    def mode=(mode)
+      if mode != @mode
+        @mode = mode
+        @modified = true
+      end
+    end
+
     # Set new repository (modified flag is reset)
     def id=(id)
       @modified = false
@@ -26,7 +35,7 @@ module Gitrb
 
     # Has this tree been modified?
     def modified?
-      @modified || @children.values.any? { |entry| entry.type == :tree && entry.modified? }
+      @modified || @children.values.any? {|child| (!(Reference === child) || child.resolved?) && child.modified? }
     end
 
     def dump
