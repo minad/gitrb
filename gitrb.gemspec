@@ -33,6 +33,7 @@ test/commit_test.rb
 test/helper.rb
 test/profile.rb
 test/repository_test.rb
+test/repository_init_test.rb
 test/trie_test.rb
 test/tree_test.rb
 }

@@ -10,12 +10,6 @@ describe Gitrb do
     @repo = Gitrb::Repository.new(:path => REPO, :create => true)
   end
 
-  it 'should fail to initialize without a valid git repository' do
-    lambda do
-      Gitrb::Repository.new(:path => '/')
-    end.should.raise(ArgumentError)
-  end
-
   it 'should put and get objects by sha' do
     blob1 = repo.put(Gitrb::Blob.new(:data => 'Hello'))
     blob2 = repo.put(Gitrb::Blob.new(:data => 'World'))
