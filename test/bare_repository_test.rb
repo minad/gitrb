@@ -8,7 +8,7 @@ describe Gitrb do
     FileUtils.rm_rf REPO
     Dir.mkdir REPO
 
-    @repo = Gitrb::Repository.new(:path => REPO, :create => true)
+    @repo = Gitrb::Repository.new(:path => REPO, :create => true, :bare => true)
   end
 
   it 'should fail to initialize without a valid git repository' do
