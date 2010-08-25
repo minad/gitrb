@@ -334,11 +334,7 @@ module Gitrb
       if create && !File.exists?("#{@path}/objects")
         FileUtils.mkpath(@path) if !File.exists?(@path)
         raise ArgumentError, "Not a valid Git repository: '#{@path}'" if !File.directory?(@path)
-        if @bare
-          Dir.chdir(@path) { git_init '--bare' }
-        else
-          Dir.chdir(@path[0..-6]) { git_init }
-        end
+        git_init(@bare ? '--bare' : nil)
       else
         raise ArgumentError, "Not a valid Git repository: '#{@path}'" if !File.directory?("#{@path}/objects")
       end
