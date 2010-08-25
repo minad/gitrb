@@ -10,6 +10,14 @@ describe Gitrb do
     @repo = Gitrb::Repository.new(:path => REPO, :create => true)
   end
 
+  it 'should set the GIT_DIR environment variable' do
+    ENV['GIT_DIR'].should.equal nil
+    repo.with_git_dir do
+      ENV['GIT_DIR'].should.equal REPO + "/.git"
+    end
+    ENV['GIT_DIR'].should.equal nil
+  end
+
   it 'should put and get objects by sha' do
     blob1 = repo.put(Gitrb::Blob.new(:data => 'Hello'))
     blob2 = repo.put(Gitrb::Blob.new(:data => 'World'))

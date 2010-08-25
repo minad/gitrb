@@ -36,12 +36,14 @@ This is a message"
     repo.root['a'] = Gitrb::Blob.new(:data => "Yay")
     commit = repo.commit("Commit Message", author, author)
 
-    IO.popen("git log") do |io|
-      io.gets.should.equal "commit #{commit.id}\n"
-      io.gets.should.equal "Author: hans <hans@email.de>\n"
-      io.gets.should.equal "Date:   Mon Apr 20 00:00:00 2009 #{Time.now.strftime('%z')}\n"
-      io.gets.should.equal "\n"
-      io.gets.should.equal "    Commit Message\n"
+    repo.with_git_dir do
+      IO.popen("git log") do |io|
+        io.gets.should.equal "commit #{commit.id}\n"
+        io.gets.should.equal "Author: hans <hans@email.de>\n"
+        io.gets.should.equal "Date:   Mon Apr 20 00:00:00 2009 #{Time.now.strftime('%z')}\n"
+        io.gets.should.equal "\n"
+        io.gets.should.equal "    Commit Message\n"
+      end
     end
   end
 

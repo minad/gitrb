@@ -276,26 +276,27 @@ module Gitrb
     def method_missing(name, *args, &block)
       cmd = name.to_s
       if cmd[0..3] == 'git_'
-        ENV['GIT_DIR'] = path
         cmd = cmd[4..-1].tr('_', '-')
         args = args.flatten.compact.map {|s| "'" + s.to_s.gsub("'", "'\\\\''") + "'" }.join(' ')
         cmdline = "git #{cmd} #{args} 2>&1"
 
         @logger.debug "gitrb: #{cmdline}"
 
-	# Read in binary mode (ascii-8bit) and convert afterwards
-        out = if block_given?
-		IO.popen(cmdline, 'rb', &block)
-	      else
-                set_encoding IO.popen(cmdline, 'rb') {|io| io.read }
-              end
+        with_git_dir do
+          # Read in binary mode (ascii-8bit) and convert afterwards
+          out = if block_given?
+                  IO.popen(cmdline, 'rb', &block)
+                else
+                  set_encoding IO.popen(cmdline, 'rb') {|io| io.read }
+                end
 
-        if $?.exitstatus > 0
-          return '' if $?.exitstatus == 1 && out == ''
-          raise CommandError.new("git #{cmd}", args, out)
+          if $?.exitstatus > 0
+            return '' if $?.exitstatus == 1 && out == ''
+            raise CommandError.new("git #{cmd}", args, out)
+          end
+
+          out
         end
-
-        out
       else
         super
       end
@@ -314,6 +315,14 @@ module Gitrb
         email = Etc.getlogin + '@' + `hostname -f`.chomp
       end
       User.new(name, email)
+    end
+
+    def with_git_dir
+      old_path = ENV['GIT_DIR']
+      ENV['GIT_DIR'] = path
+      yield
+    ensure
+      ENV['GIT_DIR'] = old_path
     end
 
     private
