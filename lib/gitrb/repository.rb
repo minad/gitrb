@@ -233,7 +233,7 @@ module Gitrb
         content, type = pack.get_object(offset)
       end
 
-      @logger.debug "gitrb: Loaded #{id}"
+      @logger.debug "gitrb: Loaded #{type} #{id}"
 
       set_encoding(id)
       object = GitObject.factory(type, :repository => self, :id => id, :data => content)
