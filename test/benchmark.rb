@@ -3,13 +3,13 @@ require 'grit'
 require 'benchmark'
 require 'fileutils'
 
-REPO = '/tmp/gitrb'
+REPO_PATH = '/tmp/gitrb_test'
 
-FileUtils.rm_rf REPO
-FileUtils.mkpath REPO
-Dir.chdir REPO
+FileUtils.rm_rf REPO_PATH
+FileUtils.mkpath REPO_PATH
+Dir.chdir REPO_PATH
 
-repo = Gitrb::Repository.new(:path => REPO, :create => true)
+repo = Gitrb::Repository.new(:path => REPO_PATH, :create => true)
 
 grit = nil
 gitrb = nil

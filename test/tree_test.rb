@@ -1,13 +1,11 @@
 require 'helper'
 
 describe Gitrb::Tree do
-  REPO = '/tmp/gitrb_test'
-
   before do
-    FileUtils.rm_rf REPO
-    Dir.mkdir REPO
+    FileUtils.rm_rf REPO_PATH
+    Dir.mkdir REPO_PATH
 
-    @repo = Gitrb::Repository.new(:path => REPO, :create => true)
+    @repo = Gitrb::Repository.new(:path => REPO_PATH, :create => true)
   end
 
   it "should write a table" do

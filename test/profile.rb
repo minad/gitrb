@@ -3,12 +3,12 @@ require 'fileutils'
 require 'grit'
 require 'ruby-prof'
 
-REPO = '/tmp/gitrb'
+REPO_PATH = '/tmp/gitrb_test'
 
-FileUtils.rm_rf REPO
-FileUtils.mkpath REPO
+FileUtils.rm_rf REPO_PATH
+FileUtils.mkpath REPO_PATH
 
-repo = Gitrb::Repository.new(:path => REPO, :create => true)
+repo = Gitrb::Repository.new(:path => REPO_PATH, :create => true)
 repo.transaction { 'aaa'.upto('jjj') { |key| repo.root[key] = Gitrb::Blob.new(:data => rand.to_s) } }
 
 result = RubyProf.profile do

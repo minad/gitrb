@@ -1,21 +1,10 @@
 require 'helper'
 
 describe Gitrb do
-
-  REPO = '/tmp/gitrb_test'
-
   before do
-    FileUtils.rm_rf REPO
-    Dir.mkdir REPO
-    @repo = Gitrb::Repository.new(:path => REPO, :create => true)
-  end
-
-  it 'should set the GIT_DIR environment variable' do
-    ENV['GIT_DIR'].should.equal nil
-    repo.with_git_dir do
-      ENV['GIT_DIR'].should.equal REPO + "/.git"
-    end
-    ENV['GIT_DIR'].should.equal nil
+    FileUtils.rm_rf REPO_PATH
+    Dir.mkdir REPO_PATH
+    @repo = Gitrb::Repository.new(:path => REPO_PATH, :create => true)
   end
 
   it 'should put and get objects by sha' do
@@ -153,11 +142,12 @@ describe Gitrb do
 
     begin
       repo.transaction do
-        repo.root['a/b'] = 'Changed'
-        repo.root['x/a'] = 'Added'
-        raise
+        repo.root['a/b'] = Gitrb::Blob.new(:data => 'Changed')
+        repo.root['x/a'] = Gitrb::Blob.new(:data => 'Added')
+        raise 'boo'
       end
-    rescue
+    rescue RuntimeError => ex
+      ex.message.should.equal 'boo'
     end
 
     repo.root['a/b'].data.should.equal 'Hello'
@@ -205,9 +195,12 @@ describe Gitrb do
 
     ready = false
 
+    # This test case produces a deadlock in old ruby versions
+    # (Works in 1.8.7_p302 and 1.9)
     repo.transaction do
       Thread.start do
         repo.transaction do
+          sleep 0.1
           repo.root['a/b'] = Gitrb::Blob.new(:data => 'Changed by second thread')
         end
         ready = true
@@ -215,15 +208,14 @@ describe Gitrb do
       repo.root['a/b'] = Gitrb::Blob.new(:data => 'Changed')
     end
 
-    sleep 0.01 until ready
+    repo.root['a/b'].data.should.equal 'Changed'
 
-    repo.refresh
+    sleep 0.01 until ready
 
     repo.root['a/b'].data.should.equal 'Changed by second thread'
   end
 
   it 'should find all objects' do
-    repo.refresh
     repo.root['c'] = Gitrb::Blob.new(:data => 'Hello')
     repo.root['d'] = Gitrb::Blob.new(:data => 'World')
     repo.commit
@@ -233,6 +225,8 @@ describe Gitrb do
   end
 
   it "should load log" do
+    repo.log.should.be.empty
+
     repo.root['a'] = Gitrb::Blob.new(:data => 'a')
     repo.commit 'added a'
 

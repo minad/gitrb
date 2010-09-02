@@ -1,14 +1,11 @@
 require 'helper'
 
 describe Gitrb::Commit do
-
-  REPO = '/tmp/gitrb_test'
-
   before do
-    FileUtils.rm_rf REPO
-    Dir.mkdir REPO
+    FileUtils.rm_rf REPO_PATH
+    Dir.mkdir REPO_PATH
 
-    @repo = Gitrb::Repository.new(:path => REPO, :create => true)
+    @repo = Gitrb::Repository.new(:path => REPO_PATH, :create => true)
   end
 
   it "should dump in right format" do
@@ -36,7 +33,7 @@ This is a message"
     repo.root['a'] = Gitrb::Blob.new(:data => "Yay")
     commit = repo.commit("Commit Message", author, author)
 
-    repo.with_git_dir do
+    with_git_dir do
       IO.popen("git log") do |io|
         io.gets.should.equal "commit #{commit.id}\n"
         io.gets.should.equal "Author: hans <hans@email.de>\n"

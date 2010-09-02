@@ -17,6 +17,14 @@ module Gitrb
   class Repository
     attr_reader :path, :root, :branch, :head, :encoding
 
+    def self.git_path
+      @git_path ||= begin
+        path = `which git`.chomp
+        raise 'git not found' if $?.exitstatus != 0
+        path
+      end
+    end
+
     SHA_PATTERN = /^[A-Fa-f0-9]{5,40}$/
     REVISION_PATTERN = /^[\w\-\.]+([\^~](\d+)?)*$/
     DEFAULT_ENCODING = 'utf-8'
@@ -176,8 +184,8 @@ module Gitrb
                               :message => message.strip)
       end
       commits
-    rescue => ex
-      return [] if ex.message =~ /bad default revision 'HEAD'/i
+    rescue CommandError => ex
+      return [] if ex.output =~ /bad default revision 'HEAD'/i
       raise
     end
 
@@ -249,6 +257,8 @@ module Gitrb
     #
     # Returns the object.
     def put(object)
+      raise ArgumentError unless object && GitObject === object
+
       content = object.dump
       data = "#{object.type} #{content.bytesize rescue content.length}\0#{content}"
       id = sha(data)
@@ -277,55 +287,41 @@ module Gitrb
       cmd = name.to_s
       if cmd[0..3] == 'git_'
         cmd = cmd[4..-1].tr('_', '-')
-        cmdline = ['/usr/bin/git', cmd, args.map { |a| a.to_s }].flatten
+        args = args.flatten.compact.map {|a| a.to_s }
 
-        @logger.debug "gitrb: #{cmdline}"
+        @logger.debug "gitrb: #{self.class.git_path} #{cmd} #{args.inspect}"
 
-        with_git_dir do
-          out = IO.popen('-', 'rb') do |io|
-            if io
-              # Read in binary mode (ascii-8bit) and convert afterwards
-              block_given? ? yield(io) : set_encoding(io.read)
-            else
-              $stderr.reopen($stdout)   # child's stderr goes to stdout
-              exec(*cmdline)
-              raise "exec failed and didn't throw?  that's inconceivable!"
-            end
+        out = IO.popen('-', 'rb') do |io|
+          if io
+            # Read in binary mode (ascii-8bit) and convert afterwards
+            block_given? ? yield(io) : set_encoding(io.read)
+          else
+            # child's stderr goes to stdout
+            STDERR.reopen(STDOUT)
+            ENV['GIT_DIR'] = path
+            exec(self.class.git_path, cmd, *args)
           end
-
-          if $?.exitstatus > 0
-            return '' if $?.exitstatus == 1 && out == ''
-            raise CommandError.new("git #{cmd}", args, out)
-          end
-
-          out
         end
+
+        if $?.exitstatus > 0
+          return '' if $?.exitstatus == 1 && out == ''
+          raise CommandError.new("git #{cmd}", args, out)
+        end
+
+        out
       else
         super
       end
     end
 
     def default_user
-      name = git_config('user.name').chomp
-      email = git_config('user.email').chomp
-      if name.empty?
-        require 'etc'
-        user = Etc.getpwnam(Etc.getlogin)
-        name = user.gecos
+      @default_user ||= begin
+        name = git_config('user.name').chomp
+        email = git_config('user.email').chomp
+        name = ENV['USER'] if name.empty?
+        email = ENV['USER'] + '@' + `hostname -f`.chomp if email.empty?
+        User.new(name, email)
       end
-      if email.empty?
-        require 'etc'
-        email = Etc.getlogin + '@' + `hostname -f`.chomp
-      end
-      User.new(name, email)
-    end
-
-    def with_git_dir
-      old_path = ENV['GIT_DIR']
-      ENV['GIT_DIR'] = path
-      yield
-    ensure
-      ENV['GIT_DIR'] = old_path
     end
 
     private

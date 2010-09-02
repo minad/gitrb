@@ -11,9 +11,17 @@ module TestHelper
       open(file, 'w') { |io| io << data }
 
       repo.git_add(file)
-      repo.git_commit('-m', 'added #{file}')
+      repo.git_commit('-m', "added #{file}")
       File.unlink(file)
     end
+  end
+
+  def with_git_dir
+    old_path = ENV['GIT_DIR']
+    ENV['GIT_DIR'] = repo.path
+    yield
+  ensure
+    ENV['GIT_DIR'] = old_path
   end
 end
 
@@ -21,3 +29,5 @@ class Bacon::Context
   include TestHelper
   attr_reader :repo
 end
+
+REPO_PATH = '/tmp/gitrb_test'

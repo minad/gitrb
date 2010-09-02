@@ -1,7 +1,6 @@
 require 'gitrb'
 
 describe Gitrb::Trie do
-
   before do
     @trie = Gitrb::Trie.new
   end
