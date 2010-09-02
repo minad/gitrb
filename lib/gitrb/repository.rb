@@ -273,22 +273,25 @@ module Gitrb
       object
     end
 
-    def method_missing(name, *args, &block)
+    def method_missing(name, *args)
       cmd = name.to_s
       if cmd[0..3] == 'git_'
         cmd = cmd[4..-1].tr('_', '-')
-        args = args.flatten.compact.map {|s| "'" + s.to_s.gsub("'", "'\\\\''") + "'" }.join(' ')
-        cmdline = "git #{cmd} #{args} 2>&1"
+        cmdline = ['/usr/bin/git', cmd, args.map { |a| a.to_s }].flatten
 
         @logger.debug "gitrb: #{cmdline}"
 
         with_git_dir do
-          # Read in binary mode (ascii-8bit) and convert afterwards
-          out = if block_given?
-                  IO.popen(cmdline, 'rb', &block)
-                else
-                  set_encoding IO.popen(cmdline, 'rb') {|io| io.read }
-                end
+          out = IO.popen('-', 'rb') do |io|
+            if io
+              # Read in binary mode (ascii-8bit) and convert afterwards
+              block_given? ? yield(io) : set_encoding(io.read)
+            else
+              $stderr.reopen($stdout)   # child's stderr goes to stdout
+              exec(*cmdline)
+              raise "exec failed and didn't throw?  that's inconceivable!"
+            end
+          end
 
           if $?.exitstatus > 0
             return '' if $?.exitstatus == 1 && out == ''
