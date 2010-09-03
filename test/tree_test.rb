@@ -47,6 +47,20 @@ describe Gitrb::Tree do
        ["100644", "blob", "3410062ba67c5ed59b854387a8bc0ec012479368", "c"]]
   end
 
+  it "should have move" do
+    tree = Gitrb::Tree.new(:repository => repo)
+    tree['x/y'] = Gitrb::Blob.new(:data => 'a')
+    tree['x/y'].data.should.equal 'a'
+    tree.save
+
+    repo.clear
+    tree = repo.get(tree.id)
+
+    tree.move('x/y', 'z')
+    tree['x/y'].should.equal nil
+    tree['z'].data.should.equal 'a'
+  end
+
   it "should save nested trees" do
     tree = Gitrb::Tree.new(:repository => repo)
 

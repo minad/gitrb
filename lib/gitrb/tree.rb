@@ -73,7 +73,7 @@ module Gitrb
 
     # Write an entry on specified path.
     def []=(path, entry)
-      raise ArgumentError unless entry && GitObject === entry
+      raise ArgumentError unless entry && (Reference === entry || GitObject === entry)
       path = normalize_path(path)
       if path.empty?
         raise 'Empty path'
