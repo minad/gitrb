@@ -68,8 +68,8 @@ describe Gitrb do
 
     repo.refresh
 
-    repo.root['x'].object.should.be.kind_of(Gitrb::Tree)
-    repo.root['y'].object.should.be.kind_of(Gitrb::Tree)
+    repo.root['x'].git_object.should.be.kind_of(Gitrb::Tree)
+    repo.root['y'].git_object.should.be.kind_of(Gitrb::Tree)
 
     repo.root['x']['a'].data.should.equal 'Hello'
     repo.root['y']['b'].data.should.equal 'World'
@@ -164,8 +164,8 @@ describe Gitrb do
       repo.root['x/a'] = Gitrb::Blob.new(:data => 'Added')
     end
 
-    a = ls_tree(repo.root['a'].object.id)
-    x = ls_tree(repo.root['x'].object.id)
+    a = ls_tree(repo.root['a'].id)
+    x = ls_tree(repo.root['x'].id)
 
     a.should.equal [["100644", "blob", "b653cf27cef08de46da49a11fa5016421e9e3b32", "b"]]
     x.should.equal [["100644", "blob", "87d2b203800386b1cc8735a7d540a33e246357fa", "a"]]
@@ -249,7 +249,7 @@ describe Gitrb do
     tag = repo.get(id)
 
     tag.tagtype.should.equal 'commit'
-    tag.object.object.should.equal repo.head
+    tag.object.git_object.should.equal repo.head
     tag.tagger.name.should.equal user.name
     tag.tagger.email.should.equal user.email
     tag.message.should =~ /message/

@@ -40,4 +40,3 @@ if !1.respond_to?(:ord)
     end
   end
 end
-

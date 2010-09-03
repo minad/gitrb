@@ -7,7 +7,7 @@ module Gitrb
       @id = options[:id]
     end
 
-    def object
+    def git_object
       self
     end
 

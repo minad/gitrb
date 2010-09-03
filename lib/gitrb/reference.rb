@@ -9,9 +9,7 @@ module Gitrb
 
     def method_missing(name, *args, &block)
       if @object
-        unless name == :to_ary || name == :to_str
-          # Ruby 1.9 uses the presence of the to_ary and to_str methods to determine if an object is coercable.
-          # If we create these methods, Ruby will incorrectly think that the object can be converted to an array.
+        if @object.respond_to? name
           instance_eval %{def self.#{name}(*args, &block); @object.send("#{name}", *args, &block); end}
         end
         @object.send(name, *args, &block)
@@ -21,15 +19,10 @@ module Gitrb
         @properties[name]
       elsif @properties.include?(name.to_s)
         @properties[name.to_s]
-      elsif object
-        method_missing(name, *args, &block)
       else
-        super
+        @object = repository.get(id)
+        method_missing(name, *args, &block)
       end
-    end
-
-    def object
-      @object ||= repository.get(id)
     end
 
     def resolved?
