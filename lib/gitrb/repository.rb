@@ -96,7 +96,7 @@ module Gitrb
     # Options:
     #   :to             - Required target commit
     #   :from           - Optional source commit (otherwise comparision with empty tree)
-    #   :path           - Restrict to path
+    #   :path           - Restrict to path/or paths
     #   :detect_renames - Detect renames O(n^2)
     #   :detect_copies  - Detect copies O(n^2), very slow
     def diff(opts)
@@ -112,7 +112,7 @@ module Gitrb
       Diff.new(from, to, git_diff_tree('--root', '--full-index', '-u',
                                        opts[:detect_renames] ? '-M' : nil,
                                        opts[:detect_copies] ? '-C' : nil,
-                                       from ? from.id : nil, to.id, '--', opts[:path]))
+                                       from ? from.id : nil, to.id, '--', *opts[:path]))
     end
 
     # All changes made inside a transaction are atomic. If some
@@ -162,15 +162,19 @@ module Gitrb
     end
 
     # Returns a list of commits starting from head commit.
+    # Options:
+    #   :path      - Restrict to path/or paths
+    #   :max_count - Maximum count of commits
+    #   :skip      - Skip n commits
+    #   :start     - Commit to start from
     def log(opts = {})
       max_count = opts[:max_count]
       skip = opts[:skip]
       start = opts[:start]
-      path = opts[:path]
       raise ArgumentError, "Invalid commit: #{start}" if start.to_s =~ /^\-/
       log = git_log('--pretty=tformat:%H%n%P%n%T%n%an%n%ae%n%at%n%cn%n%ce%n%ct%n%x00%s%n%b%x00',
                     skip ? "--skip=#{skip.to_i}" : nil,
-                    max_count ? "--max-count=#{max_count.to_i}" : nil, start, '--', path).split(/\n*\x00\n*/)
+                    max_count ? "--max-count=#{max_count.to_i}" : nil, start, '--', *opts[:path]).split(/\n*\x00\n*/)
       commits = []
       log.each_slice(2) do |data, message|
         data = data.split("\n")
