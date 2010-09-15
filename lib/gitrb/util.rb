@@ -17,17 +17,6 @@ module Gitrb
         str
       end
     end
-
-    class Synchronized
-      def initialize(obj)
-        @obj = obj
-        @mutex = Mutex.new
-      end
-
-      def method_missing(*args)
-        @mutex.synchronize { @obj.send(*args) }
-      end
-    end
   end
 end
 

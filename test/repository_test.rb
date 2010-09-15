@@ -190,31 +190,6 @@ describe Gitrb do
     repo.git_show(c).should.equal 'c'
   end
 
-  it 'should allow only one transaction' do
-    file 'a/b', 'Hello'
-
-    ready = false
-
-    # This test case produces a deadlock in old ruby versions
-    # (Works in 1.8.7_p302 and 1.9)
-    repo.transaction do
-      Thread.start do
-        repo.transaction do
-          sleep 0.1
-          repo.root['a/b'] = Gitrb::Blob.new(:data => 'Changed by second thread')
-        end
-        ready = true
-      end
-      repo.root['a/b'] = Gitrb::Blob.new(:data => 'Changed')
-    end
-
-    repo.root['a/b'].data.should.equal 'Changed'
-
-    sleep 0.01 until ready
-
-    repo.root['a/b'].data.should.equal 'Changed by second thread'
-  end
-
   it 'should find all objects' do
     repo.root['c'] = Gitrb::Blob.new(:data => 'Hello')
     repo.root['d'] = Gitrb::Blob.new(:data => 'World')
@@ -270,32 +245,6 @@ describe Gitrb do
     repo.root['a'].data.should.equal 'data'
     repo.clear
     repo.root['a'].data.should.equal 'data'
-  end
-
-  it 'should forbid branch switching from within transaction' do
-    repo.transaction do
-      lambda { repo.branch = 'test' }.should.raise(ThreadError)
-    end
-  end
-
-  it 'should forbid clearing from within transaction' do
-    repo.transaction do
-      lambda { repo.clear }.should.raise(ThreadError)
-    end
-  end
-
-  it 'should forbid nested transactions' do
-    repo.transaction do
-      lambda { repo.transaction {} }.should.raise(ThreadError)
-    end
-  end
-
-  it 'should be in transaction' do
-    repo.should.not.be.in_transaction
-    repo.transaction do
-      repo.should.be.in_transaction
-    end
-    repo.should.not.be.in_transaction
   end
 
   it "should diff 2 commits" do

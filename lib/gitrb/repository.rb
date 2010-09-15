@@ -42,8 +42,6 @@ module Gitrb
       @branch  = options[:branch] || 'master'
       @logger  = options[:logger] || Logger.new(nil)
       @encoding = options[:encoding] || DEFAULT_ENCODING
-      @lock = {}
-      @transaction = Mutex.new
 
       @path = options[:path]
       @path.chomp!('/')
@@ -56,6 +54,14 @@ module Gitrb
       load
     end
 
+    def dup
+      super.instance_eval do
+        @objects = Trie.new
+        load
+        self
+      end
+    end
+
     # Bare repository?
     def bare?
       @bare
@@ -63,10 +69,8 @@ module Gitrb
 
     # Switch branch
     def branch=(branch)
-      @transaction.synchronize do
-        @branch = branch
-        load
-      end
+      @branch = branch
+      load
     end
 
     # Has our repository been changed on disk?
@@ -81,15 +85,8 @@ module Gitrb
 
     # Clear cached objects
     def clear
-      @transaction.synchronize do
-        @objects.clear
-        load
-      end
-    end
-
-    # Is there any transaction going on?
-    def in_transaction?
-      !!@lock[Thread.current.object_id]
+      @objects.clear
+      load
     end
 
     # Difference between versions
@@ -122,19 +119,20 @@ module Gitrb
     #   repository.transaction { repository['a'] = 'b' }
     #
     def transaction(message = '', author = nil, committer = nil)
-      @transaction.synchronize do
-        begin
-          start_transaction
-          result = yield
-          commit(message, author, committer)
-          result
-        rescue
-          rollback_transaction
-          raise
-        ensure
-          finish_transaction
-        end
-      end
+      lock = File.open("#{head_path}.lock", 'w')
+      lock.flock(File::LOCK_EX)
+      refresh
+
+      result = yield
+      commit(message, author, committer)
+      result
+    rescue
+      @objects.clear
+      load
+      raise
+    ensure
+      lock.close rescue nil
+      File.unlink("#{head_path}.lock") rescue nil
     end
 
     # Write a commit object to disk and set the head of the current branch.
@@ -265,7 +263,7 @@ module Gitrb
 
       content = object.dump
       data = "#{object.type} #{content.bytesize rescue content.length}\0#{content}"
-      id = sha(data)
+      id = Digest::SHA1.hexdigest(data)
       path = object_path(id)
 
       @logger.debug "gitrb: Storing #{id}"
@@ -352,34 +350,6 @@ module Gitrb
       end
     end
 
-    # Start a transaction.
-    #
-    # Tries to get lock on lock file, load the this repository if
-    # has changed in the repository.
-    def start_transaction
-      file = File.open("#{head_path}.lock", 'w')
-      file.flock(File::LOCK_EX)
-      @lock[Thread.current.object_id] = file
-      refresh
-    end
-
-    # Rerepository the state of the repository.
-    #
-    # Any changes made to the repository are discarded.
-    def rollback_transaction
-      @objects.clear
-      load
-    end
-
-    # Finish the transaction.
-    #
-    # Release the lock file.
-    def finish_transaction
-      @lock[Thread.current.object_id].close rescue nil
-      @lock.delete(Thread.current.object_id)
-      File.unlink("#{head_path}.lock") rescue nil
-    end
-
     def get_type(id, expected)
       object = get(id)
       raise NotFound, "Wrong type #{object.type}, expected #{expected}" if object && object.type != expected
@@ -388,7 +358,7 @@ module Gitrb
 
     def load_packs
       @packs   = Trie.new
-      @objects = Util::Synchronized.new(Trie.new)
+      @objects = Trie.new
 
       packs_path = "#{@path}/objects/pack"
       if File.directory?(packs_path)
@@ -412,11 +382,6 @@ module Gitrb
         @root = Tree.new(:repository => self)
       end
       @logger.debug "gitrb: Reloaded, head is #{head ? head.id : 'nil'}"
-    end
-
-    # Returns the hash value of an object string.
-    def sha(str)
-      Digest::SHA1.hexdigest(str)[0, 40]
     end
 
     # Returns the path to the current head file.

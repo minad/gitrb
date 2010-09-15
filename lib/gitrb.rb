@@ -4,7 +4,6 @@ require 'fileutils'
 require 'logger'
 require 'enumerator'
 require 'stringio'
-require 'thread'
 
 require 'gitrb/util'
 require 'gitrb/gitobject'
