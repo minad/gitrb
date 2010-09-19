@@ -10,17 +10,6 @@
 #
 
 module Gitrb
-  PACK_SIGNATURE = "PACK"
-  PACK_IDX_SIGNATURE = "\377tOc"
-
-  OBJ_NONE = 0
-  OBJ_COMMIT = 1
-  OBJ_TREE = 2
-  OBJ_BLOB = 3
-  OBJ_TAG = 4
-
-  OBJ_TYPES = [nil, 'commit', 'tree', 'blob', 'tag'].freeze
-
   class FileWindow
     def initialize(file, version = 1)
       @file = file
@@ -42,8 +31,15 @@ module Gitrb
   class PackFormatError < StandardError; end
 
   class Pack
+    PACK_IDX_SIGNATURE = "\377tOc"
+
+    OBJ_COMMIT = 1
+    OBJ_TREE = 2
+    OBJ_BLOB = 3
+    OBJ_TAG = 4
     OBJ_OFS_DELTA = 6
     OBJ_REF_DELTA = 7
+    OBJ_TYPES = [nil, 'commit', 'tree', 'blob', 'tag'].freeze
 
     FanOutCount = 256
     SHA1Size = 20
@@ -54,8 +50,6 @@ module Gitrb
     SHA1Start = OffsetStart + OffsetSize
     EntrySize = OffsetSize + SHA1Size
     EntrySizeV2 = SHA1Size + CrcSize + OffsetSize
-
-    attr_reader :name
 
     def initialize(file)
       file = file[0...-3] + 'pack' if file =~ /\.idx$/
@@ -100,25 +94,23 @@ module Gitrb
       ver = idxfile.read(4).unpack("N")[0]
 
       if sig == PACK_IDX_SIGNATURE
-        if(ver != 2)
-          raise PackFormatError, "pack #@name has unknown pack file version #{ver}"
-        end
+        raise PackFormatError, "pack #@name has unknown pack file version #{ver}" if ver != 2
         @version = 2
       else
         @version = 1
       end
 
       idx = FileWindow.new(idxfile, @version)
-      result = yield idx
+      yield idx
+    ensure
       idxfile.close
-      result
     end
 
     def with_pack
       packfile = File.open(@name, 'rb')
-      result = yield packfile
+      yield packfile
+    ensure
       packfile.close
-      result
     end
 
     def init_pack
@@ -126,9 +118,7 @@ module Gitrb
         @offsets = [0]
         FanOutCount.times do |i|
           pos = idx[i * IdxOffsetSize,IdxOffsetSize].unpack('N')[0]
-          if pos < @offsets[i]
-            raise PackFormatError, "pack #@name has discontinuous index #{i}"
-          end
+          raise PackFormatError, "pack #@name has discontinuous index #{i}" if pos < @offsets[i]
           @offsets << pos
         end
         @size = @offsets[-1]
@@ -252,27 +242,24 @@ module Gitrb
       outdata = ""
       with_pack do |packfile|
         packfile.seek(offset)
-        zstr = Zlib::Inflate.new
-        while outdata.size < destsize
-          indata = packfile.read(0xFFFF)
-          if indata.size == 0
-            raise PackFormatError, 'error reading pack data'
+        begin
+          zstream = Zlib::Inflate.new
+          while outdata.size < destsize
+            indata = packfile.read(0xFFFF)
+            raise PackFormatError, 'error reading pack data' if indata.size == 0
+            outdata << zstream.inflate(indata)
           end
-          outdata << zstr.inflate(indata)
+          raise PackFormatError, 'error reading pack data' if outdata.size > destsize
+        ensure
+          zstream.close
         end
-        if outdata.size > destsize
-          raise PackFormatError, 'error reading pack data'
-        end
-        zstr.close
       end
       outdata
     end
 
     def patch_delta(base, delta)
       src_size, pos = patch_delta_header_size(delta, 0)
-      if src_size != base.size
-        raise PackFormatError, 'invalid delta data'
-      end
+      raise PackFormatError, 'invalid delta data' if src_size != base.size
 
       dest_size, pos = patch_delta_header_size(delta, pos)
       dest = ""
@@ -307,9 +294,7 @@ module Gitrb
       shift = 0
       begin
         c = delta[pos].ord
-        if c == nil
-          raise PackFormatError, 'invalid delta header'
-        end
+        raise PackFormatError, 'invalid delta header' if c == nil
         pos += 1
         size |= (c & 0x7f) << shift
         shift += 7
