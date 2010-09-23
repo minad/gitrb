@@ -39,7 +39,7 @@ module Gitrb
     end
 
     def dump
-      @children.to_a.sort {|a,b| a.first <=> b.first }.map do |name, child|
+      sorted_children.map do |name, child|
 	child.save if !(Reference === child) || child.resolved?
         "#{child.mode.to_s(8)} #{name}\0#{repository.set_encoding [child.id].pack("H*")}"
       end.join
@@ -126,22 +126,28 @@ module Gitrb
 
     # Iterate over all children
     def each(&block)
-      @children.sort.each do |name, child|
+      sorted_children.each do |name, child|
         yield(name, child)
       end
     end
 
     def names
-      @children.keys.sort
+      map {|name, child| name }
     end
 
     def values
-      map { |name, child| child }
+      map {|name, child| child }
     end
 
     alias children values
 
     private
+
+    def sorted_children
+      @children.map do |name, child|
+        [name + (child.type == :tree ? '/' : "\0"), name, child]
+      end.sort.map {|_, name, child| [name, child] }
+    end
 
     def normalize_path(path)
       return path if Array === path
