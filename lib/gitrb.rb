@@ -5,6 +5,7 @@ require 'logger'
 require 'enumerator'
 require 'stringio'
 
+require 'gitrb/version'
 require 'gitrb/util'
 require 'gitrb/gitobject'
 require 'gitrb/reference'

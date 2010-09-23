@@ -1,4 +1,6 @@
 module Gitrb
+
+  # Trie data structure to store sha1s
   class Trie
     include Enumerable
 
@@ -91,4 +93,5 @@ module Gitrb
       key[@key.length].ord
     end
   end
+
 end

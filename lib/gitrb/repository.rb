@@ -1,4 +1,5 @@
 module Gitrb
+
   class NotFound < StandardError; end
 
   class CommandError < StandardError
@@ -420,4 +421,5 @@ module Gitrb
       buf[0].ord == 0x78 && ((buf[0].ord << 8) | buf[1].ord) % 31 == 0
     end
   end
+
 end

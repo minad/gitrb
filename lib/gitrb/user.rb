@@ -1,4 +1,5 @@
 module Gitrb
+
   class User
     attr_reader :name, :email, :date
 
@@ -18,6 +19,6 @@ module Gitrb
         new match[1].strip, match[2].strip, Time.at(match[3].to_i)
       end
     end
-
   end
+
 end

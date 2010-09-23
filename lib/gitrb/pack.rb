@@ -10,6 +10,7 @@
 #
 
 module Gitrb
+
   class FileWindow
     def initialize(file, version = 1)
       @file = file
@@ -302,4 +303,5 @@ module Gitrb
       [size, pos]
     end
   end
+
 end

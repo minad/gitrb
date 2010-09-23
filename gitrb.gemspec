@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name = 'gitrb'
-  s.version = '0.2.4'
+  s.version = '0.2.5'
   s.summary = 'Pure ruby git implementation'
   s.author = 'Daniel Mendler'
   s.email = 'mail@daniel-mendler.de'
@@ -27,6 +27,7 @@ lib/gitrb/tree.rb
 lib/gitrb/trie.rb
 lib/gitrb/user.rb
 lib/gitrb/util.rb
+lib/gitrb/version.rb
 test/bare_repository_test.rb
 test/benchmark.rb
 test/commit_test.rb

@@ -1,4 +1,6 @@
 module Gitrb
+
+  # Reference to GitObject to support lazy-loading of git-objects
   class Reference
     undef_method :id, :type rescue nil
 
@@ -29,4 +31,5 @@ module Gitrb
       @object != nil
     end
   end
+
 end

@@ -1,4 +1,6 @@
 module Gitrb
+
+  # Base class for blob, tree, commit and tag
   class GitObject
     attr_accessor :repository, :id
 
@@ -27,4 +29,5 @@ module Gitrb
       klass.new(*args)
     end
   end
+
 end
