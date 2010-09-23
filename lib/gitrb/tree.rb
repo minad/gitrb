@@ -53,6 +53,16 @@ module Gitrb
       id
     end
 
+    # Are there no children?
+    def empty?
+      @children.empty?
+    end
+
+    # Number of children
+    def size
+      @children.size
+    end
+
     # Does this key exist in the children?
     def exists?(name)
       self[name] != nil
