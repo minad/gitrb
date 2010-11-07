@@ -44,7 +44,7 @@ module Gitrb
       @logger  = options[:logger] || Logger.new(nil)
       @encoding = options[:encoding] || DEFAULT_ENCODING
 
-      @path = options[:path]
+      @path = options[:path].dup
       @path.chomp!('/')
       @path += '/.git' if !@bare
 
